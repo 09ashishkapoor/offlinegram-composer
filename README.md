@@ -104,7 +104,7 @@ A static landing page lives in the `docs/` folder. To enable it:
 2. Go to **Settings → Pages → Source**, set branch to `main` and folder to `/docs`
 3. Your site will be live at `https://09ashishkapoor.github.io/offlinegram-composer`
 
-> Update the two `YOUR_USERNAME` placeholder links in `docs/index.html` before publishing.
+
 
 ---
 
