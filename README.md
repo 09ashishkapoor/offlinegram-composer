@@ -1,5 +1,7 @@
 ﻿# OfflineGram Composer
 
+**[🌐 Project site → 09ashishkapoor.github.io/offlinegram-composer](https://09ashishkapoor.github.io/offlinegram-composer/)**
+
 A locally-hosted web app for composing Instagram-style square posts. It runs a lightweight server on your machine and opens in your browser — no Electron, no native GUI framework, just a plain browser tab. Pick an image, type your text, choose a preset, preview, and export — all offline, no accounts required.
 
 ![OfflineGram Composer — wide layout](static/screenshots/ui-wide.png)
@@ -98,12 +100,9 @@ Import a structured text file where each entry contains separate fields for mult
 
 ## GitHub Pages site
 
-A static landing page lives in the `docs/` folder. To enable it:
+Live at **https://09ashishkapoor.github.io/offlinegram-composer/**
 
-1. Push the repo to GitHub
-2. Go to **Settings → Pages → Source**, set branch to `main` and folder to `/docs`
-3. Your site will be live at `https://09ashishkapoor.github.io/offlinegram-composer`
-
+The source is in the `docs/` folder, served via GitHub Pages (Settings → Pages → branch `main`, folder `/docs`).
 
 
 ---
