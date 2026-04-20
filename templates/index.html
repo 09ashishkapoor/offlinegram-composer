@@ -1,0 +1,143 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OfflineGram Composer</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230e1218'/%3E%3Crect x='9' y='43' width='46' height='11' rx='4' fill='%23ff8d5c'/%3E%3Ctext x='32' y='31' text-anchor='middle' font-size='20' fill='white' font-family='Arial'%3EP%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/css/style.css?v=20260419a">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Local Post Composer</p>
+        <h1>OfflineGram Composer</h1>
+        <p class="hero-copy">Drop one image, choose one preset, preview it, and export it.</p>
+      </div>
+    </header>
+
+    <main class="composer-layout">
+      <section class="preview-panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Preview</p>
+            <h2>Square canvas</h2>
+          </div>
+          <p id="preview-meta" class="helper-text">Choose an image and preset to preview.</p>
+        </div>
+        <div class="preview-stage">
+          <div id="preview-empty" class="preview-empty">Preview appears here.</div>
+          <img id="spc-preview-image" class="preview-image hidden" alt="Composer preview">
+        </div>
+      </section>
+
+      <aside class="control-panel">
+        <section class="panel-card">
+          <p class="eyebrow">Source</p>
+          <label class="drop-zone" for="spc-image-upload" id="spc-drop-zone">
+            <input id="spc-image-upload" type="file" accept="image/*">
+            <span class="drop-title">Drop image here</span>
+            <span class="drop-hint">or click to choose a local file</span>
+          </label>
+          <div class="inline-row">
+            <button class="ghost-button" id="spc-browse-image" type="button">Choose image</button>
+            <span class="path-pill" id="spc-image-source">No image selected</span>
+          </div>
+        </section>
+
+        <section class="panel-card">
+          <p class="eyebrow">Text</p>
+          <label for="spc-text" class="field-label">Overlay text</label>
+          <textarea id="spc-text" rows="5" placeholder="Enter the exact text to place on the image"></textarea>
+        </section>
+
+        <section class="panel-card">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Presets</p>
+              <h2>Choose a style</h2>
+            </div>
+          </div>
+          <p id="preset-helper-text" class="helper-text">Edit presets in presets.json (in this project root, next to app.py).</p>
+          <div id="preset-options" class="preset-grid"></div>
+        </section>
+
+        <section class="panel-card">
+          <details id="advanced-toggle">
+            <summary>Customize overlay</summary>
+            <div id="advanced-controls" class="advanced-grid"></div>
+          </details>
+        </section>
+
+        <section class="panel-card">
+          <p class="eyebrow">Export</p>
+          <div class="inline-row">
+            <button class="ghost-button" id="spc-browse-output" type="button">Choose output folder</button>
+            <span class="path-pill" id="spc-output-path">No output folder selected</span>
+          </div>
+          <div class="button-row">
+            <button class="primary-button" id="spc-preview" type="button">Preview</button>
+            <button class="primary-button" id="spc-export" type="button">Export PNG</button>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <div id="browser-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="browser-title">
+      <div class="modal-card browser-modal-card">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Choose File Or Folder</p>
+            <h2 id="browser-title">Choose File Or Folder</h2>
+            <p id="browser-helper" class="muted">Select a drive to begin.</p>
+          </div>
+          <button class="ghost-button" id="close-browser" type="button">Close</button>
+        </div>
+
+        <div class="browser-topbar">
+          <div id="browser-path" class="browser-path">Select a drive to begin.</div>
+          <label class="browser-search">
+            <span>Filter current folder</span>
+            <input id="browser-search" type="text" placeholder="Type to filter folders or images">
+          </label>
+        </div>
+
+        <div class="browser-toolbar">
+          <button class="ghost-button" id="browser-up" type="button">Up</button>
+          <button class="ghost-button" id="browser-select-current" type="button">Use folder</button>
+          <button class="ghost-button" id="browser-use-selected" type="button">Use image</button>
+        </div>
+
+        <div id="browser-roots" class="root-grid"></div>
+
+        <div class="browser-columns">
+          <section class="browser-pane">
+            <div class="browser-pane-header">
+              <h3>Folders</h3>
+              <p class="muted">Open folders to move deeper into the location you want.</p>
+            </div>
+            <div id="browser-folders" class="browser-list"></div>
+          </section>
+
+          <section class="browser-pane">
+            <div class="browser-pane-header">
+              <h3>Images</h3>
+              <p class="muted">Choose one image and confirm it when image selection is active.</p>
+            </div>
+            <div id="browser-images" class="browser-list"></div>
+          </section>
+        </div>
+
+        <div class="browser-footer">
+          <div class="mini-label">Current selection</div>
+          <div id="browser-selection" class="path-pill">Nothing selected yet</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="/static/js/app.js?v=20260419a" defer></script>
+  </div>
+</body>
+</html>

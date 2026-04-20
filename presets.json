@@ -1,0 +1,74 @@
+﻿{
+  "presets": [
+    {
+      "id": "preset_1",
+      "label": "Preset 1",
+      "description": "Centered impact text with heavy outline and shadow",
+      "zones": [
+        {
+          "id": "preset-1-text",
+          "type": "text",
+          "text_source": "custom",
+          "custom_text": "",
+          "font_name": "BebasNeue-Regular",
+          "font_size": 64,
+          "text_color": "#FFFFFF",
+          "opacity": 1.0,
+          "x_percent": 50,
+          "y_percent": 50,
+          "alignment": "center",
+          "max_width_percent": 82,
+          "uppercase": true,
+          "bg_shape": "none",
+          "bg_color": "#000000",
+          "bg_opacity": 0.0,
+          "bg_padding": 0,
+          "shadow_enabled": true,
+          "shadow_dx": 0,
+          "shadow_dy": 5,
+          "shadow_blur": 14,
+          "shadow_color": "#000000",
+          "shadow_opacity": 0.9,
+          "outline_enabled": true,
+          "outline_thickness": 8,
+          "outline_color": "#000000"
+        }
+      ]
+    },
+    {
+      "id": "preset_2",
+      "label": "Preset 2",
+      "description": "Centered impact text with background rectangle",
+      "zones": [
+        {
+          "id": "preset-2-text",
+          "type": "text",
+          "text_source": "custom",
+          "custom_text": "",
+          "font_name": "BebasNeue-Regular",
+          "font_size": 64,
+          "text_color": "#FFFFFF",
+          "opacity": 1.0,
+          "x_percent": 50,
+          "y_percent": 50,
+          "alignment": "center",
+          "max_width_percent": 82,
+          "uppercase": true,
+          "bg_shape": "rectangle",
+          "bg_color": "#111111",
+          "bg_opacity": 0.62,
+          "bg_padding": 20,
+          "shadow_enabled": true,
+          "shadow_dx": 0,
+          "shadow_dy": 5,
+          "shadow_blur": 14,
+          "shadow_color": "#000000",
+          "shadow_opacity": 0.9,
+          "outline_enabled": true,
+          "outline_thickness": 8,
+          "outline_color": "#000000"
+        }
+      ]
+    }
+  ]
+}
