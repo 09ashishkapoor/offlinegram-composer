@@ -119,6 +119,45 @@ def test_browse_invalid_path():
     assert response.status_code == 400
 
 
+def test_batch_preview_and_generate(tmp_path: Path):
+    image_dir = tmp_path / "images"
+    output_dir = tmp_path / "generated"
+    image_dir.mkdir()
+    create_image(image_dir / "001.png", (10, 10, 10, 255))
+    create_image(image_dir / "002.png", (30, 30, 30, 255))
+    text_file = tmp_path / "entries.txt"
+    text_file.write_text("Name 1: Meaning 1\nName 2: Meaning 2\n", encoding="utf-8")
+
+    with text_file.open("rb") as file_handle:
+        preview_response = client.post(
+            "/api/batch/preview",
+            files={"text_file": ("entries.txt", file_handle, "text/plain")},
+            data={
+                "image_dir": str(image_dir),
+                "zones_json": json.dumps([]),
+                "sample_count": "2",
+            },
+        )
+    assert preview_response.status_code == 200
+    assert len(preview_response.json()["previews"]) == 2
+
+    with text_file.open("rb") as file_handle:
+        generate_response = client.post(
+            "/api/batch/generate",
+            files={"text_file": ("entries.txt", file_handle, "text/plain")},
+            data={
+                "image_dir": str(image_dir),
+                "zones_json": json.dumps([]),
+                "output_dir": str(output_dir),
+            },
+        )
+    assert generate_response.status_code == 200
+    payload = generate_response.json()
+    assert payload["saved_count"] == 2
+    for file_path in payload["files"]:
+        assert Path(file_path).exists()
+
+
 def test_batch_quotes_preview_success(tmp_path: Path):
     image_dir = tmp_path / "images"
     image_dir.mkdir()
@@ -190,7 +229,7 @@ def test_batch_quotes_generate_count_mismatch(tmp_path: Path):
                 "preset_id": "preset_1",
                 "output_dir": str(output_dir),
             },
-    )
+        )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "Batch image count and quote count must match exactly. Found 2 images and 1 quotes."
+    assert response.json()["detail"] == "Process stopped because quotes or images ran out."

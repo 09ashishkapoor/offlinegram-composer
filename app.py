@@ -141,10 +141,7 @@ def _paired_quote_batch_inputs(image_dir: str, text_content: str) -> tuple[list[
     if len(images) != len(quotes):
         raise HTTPException(
             status_code=400,
-            detail=(
-                "Batch image count and quote count must match exactly. "
-                f"Found {len(images)} images and {len(quotes)} quotes."
-            ),
+            detail="Process stopped because quotes or images ran out.",
         )
     return images, quotes
 
