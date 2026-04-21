@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
-from presets import PresetConfigError, build_preset_zones, load_preset_catalog
+from presets import PresetConfigError, build_batch_quote_zones, build_preset_zones, load_preset_catalog
 from processor import (
     BASE_DIR,
     DEFAULT_ZONES,
@@ -148,19 +148,7 @@ def _paired_quote_batch_inputs(image_dir: str, text_content: str) -> tuple[list[
 
 
 def _resolve_batch_quote_template(preset_id: str) -> list[dict[str, Any]]:
-    for preset in load_preset_catalog():
-        if preset["id"] != preset_id:
-            continue
-
-        zones = [dict(zone) for zone in preset["zones"]]
-        custom_text_zones = [
-            zone for zone in zones if zone.get("type") == "text" and zone.get("text_source") == "custom"
-        ]
-        if len(custom_text_zones) != 1:
-            raise PresetConfigError("Batch mode requires a preset with exactly one custom text zone.")
-        return zones
-
-    raise PresetConfigError(f"Unknown preset '{preset_id}'.")
+    return build_batch_quote_zones(preset_id, "")
 
 
 def _apply_quote_batch_template(zones: list[dict[str, Any]], quote: str) -> list[dict[str, Any]]:
