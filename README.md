@@ -1,29 +1,51 @@
-﻿# OfflineGram Composer
+# OfflineGram Composer
 
-**[🌐 Project site → 09ashishkapoor.github.io/offlinegram-composer](https://09ashishkapoor.github.io/offlinegram-composer/)**
+**Create offline quote images and square social media posts in your browser.**
 
-A locally-hosted web app for composing Instagram-style square posts. It runs a lightweight server on your machine and opens in your browser — no Electron, no native GUI framework, just a plain browser tab. Pick an image, type your text, choose a preset, preview, and export — all offline, no accounts required.
+**[Project site -> 09ashishkapoor.github.io/offlinegram-composer](https://09ashishkapoor.github.io/offlinegram-composer/)**
 
-![OfflineGram Composer — wide layout](static/screenshots/ui-wide.png)
+OfflineGram Composer is a simple tool for turning local images and text into ready-to-export quote graphics and square posts. Choose an image, add your text, pick a style preset, preview the result, and export a PNG without relying on cloud tools, accounts, or online editors.
+
+![OfflineGram Composer - wide layout](static/screenshots/ui-wide.png)
+
+## What You Can Do
+
+- Make quote images from local files
+- Create square posts for Instagram-style layouts
+- Batch-create multiple images from a text file
+- Pick a preset, preview the result, and export PNGs
+- Keep the full workflow offline on your own machine
+
+## Quick start
+
+**Requirements:** Python 3.11 recommended (3.9+ supported), any modern browser.
+
+```bat
+setup.bat
+launch.bat
+```
+
+Then open **http://127.0.0.1:8000** in your browser.
+
+`setup.bat` creates a virtual environment and installs all dependencies automatically. It prefers Python 3.11 for best `skia-python` compatibility.
 
 ## Features
 
-- Drag-and-drop or browse to load any image
+- Drag and drop an image or choose one from disk
 - Native Windows file/folder picker for **Choose image**, **Choose quote file**, and **Choose output folder**
-- Enter overlay text in a single text area
-- One-click preset selection using the root `presets.json` config
-- Live preview of the composited square canvas
-- Export as PNG to any local folder
-- Batch mode for pairing one image folder with either a one-quote-per-line text file or a structured preset-driven multi-zone text file
-- Batch preview gallery for checking the first few image/quote pairings before export
-- Advanced zone/style controls hidden behind **Customize overlay** for power users
-- 100% offline — no cloud, no login, no telemetry
+- Add overlay text and preview the result live
+- Apply one-click presets loaded from the root `presets.json` config
+- Export a finished PNG to any local folder
+- Batch-create multiple images from a one-quote-per-line text file or a structured preset-driven multi-zone text file
+- Review sample image and quote pairings before exporting a full batch
+- Open advanced per-zone controls with **Customize overlay**
+- Stay fully offline with no accounts, no cloud, and no telemetry
 
 ## Screenshots
 
 ### Main interface
 
-![Full interface — narrow](static/screenshots/ui-main.png)
+![Full interface - narrow](static/screenshots/ui-main.png)
 
 *Left: live preview canvas. Right: source, text, preset, and export controls.*
 
@@ -38,19 +60,6 @@ A locally-hosted web app for composing Instagram-style square posts. It runs a l
 ![Batch mode with preset 3 structured entries](docs/screenshots/ui-batch-preset3.png)
 
 *`preset_3` uses a structured batch file so one line can populate the number, name, and caption zones on each image.*
-
-## Quick start
-
-**Requirements:** Python 3.11 recommended (3.9+ supported), any modern browser.
-
-```bat
-setup.bat
-launch.bat
-```
-
-Then open **http://127.0.0.1:8000** in your browser.
-
-`setup.bat` creates a virtual environment and installs all dependencies automatically. It prefers Python 3.11 for best `skia-python` compatibility.
 
 ## Workflow
 
@@ -99,13 +108,13 @@ Batch exports still require exact pairing counts:
 
 ## Customising presets
 
-Open `presets.json` in the project root and edit or add entries. This is the preset file the app actually loads at runtime, and it should be the file you use for preset changes. Each preset defines one or more *zones* — text blocks, bands, or shapes — with full control over font, size, color, opacity, position, shadow, and outline.
+Open `presets.json` in the project root and edit or add entries. This is the preset file the app actually loads at runtime, and it should be the file you use for preset changes. Each preset defines one or more *zones* - text blocks, bands, or shapes - with full control over font, size, color, opacity, position, shadow, and outline.
 
 Restart the app after saving changes; the preset list reloads on the next page load.
 
 ## Advanced overlay controls
 
-Click **Customize overlay** in the control panel to expose per-zone settings without editing JSON — useful for one-off tweaks before export.
+Click **Customize overlay** in the control panel to expose per-zone settings without editing JSON - useful for one-off tweaks before export.
 
 ## Stack
 
@@ -125,7 +134,7 @@ venv\Scripts\python -m pytest -v
 
 ## Project structure
 
-```
+```text
 app.py            FastAPI application and route handlers
 processor.py      Skia rendering engine and file utilities
 presets.py        Preset loading and zone resolution
@@ -152,11 +161,10 @@ The former roadmap item for multi-zone batch text files is now implemented.
 
 Live at **https://09ashishkapoor.github.io/offlinegram-composer/**
 
-The source is in the `docs/` folder, served via GitHub Pages (Settings → Pages → branch `main`, folder `/docs`).
-
+The source is in the `docs/` folder, served via GitHub Pages (Settings -> Pages -> branch `main`, folder `/docs`).
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).
