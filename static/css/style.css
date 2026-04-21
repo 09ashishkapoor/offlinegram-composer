@@ -11,17 +11,18 @@
 }
 
 :root {
-  --bg: #0b0f14;
-  --bg-card: rgba(18, 24, 32, 0.93);
-  --bg-soft: rgba(255, 255, 255, 0.03);
+  --bg: #0d0d0d;
+  --bg-card: #161616;
+  --bg-soft: #141414;
   --bg-preview: rgba(6, 10, 16, 0.86);
-  --text: #f3f5f7;
-  --muted: #9ba6b6;
-  --border: rgba(255, 255, 255, 0.12);
-  --accent: #c89462;
-  --accent-soft: rgba(200, 148, 98, 0.16);
-  --accent-border: rgba(200, 148, 98, 0.34);
-  --danger: #d68d8d;
+  --text: #e4e4e7;
+  --muted: #71717a;
+  --border: #27272a;
+  --accent: #39ff14;
+  --accent-dark: #2ed10f;
+  --accent-soft: rgba(57, 255, 20, 0.16);
+  --accent-border: rgba(57, 255, 20, 0.34);
+  --danger: #39ff14;
   --radius-lg: 18px;
   --radius-md: 12px;
   --shadow-lg: 0 14px 36px rgba(0, 0, 0, 0.28);
@@ -37,8 +38,8 @@ body {
   color: var(--text);
   font-family: "Poppins", "Segoe UI", sans-serif;
   background:
-    radial-gradient(circle at top left, rgba(200, 148, 98, 0.12), transparent 35%),
-    linear-gradient(180deg, #0e141d 0%, #0a0f15 100%);
+    radial-gradient(circle at top left, rgba(57, 255, 20, 0.12), transparent 35%),
+    linear-gradient(180deg, #0d0d0d 0%, #090909 100%);
 }
 
 h1,
@@ -322,9 +323,9 @@ button:hover {
 }
 
 .primary-button {
-  background: linear-gradient(180deg, #d9a068 0%, #b27e4e 100%);
+  background: linear-gradient(180deg, var(--accent), var(--accent-dark));
   border-color: transparent;
-  color: #1a120b;
+  color: #0a120c;
   font-weight: 700;
   padding: 10px 16px;
 }

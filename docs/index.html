@@ -9,26 +9,31 @@
   <meta property="og:description" content="Compose Instagram-style square posts offline — in your browser.">
   <meta property="og:image" content="screenshots/ui-wide.png">
   <style>
+    @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:       #0b0f14;
-      --card:     rgba(18, 24, 32, 0.93);
-      --border:   rgba(255,255,255,0.10);
-      --text:     #f0f2f5;
-      --muted:    #8a96a8;
-      --accent:   #c89462;
-      --accent2:  rgba(200,148,98,0.15);
-      --radius:   18px;
+      --bg: #0d0d0d;
+      --card: #161616;
+      --card-soft: #1e1e1e;
+      --border: #27272a;
+      --text: #e4e4e7;
+      --muted: #71717a;
+      --accent: #39ff14;
+      --accent-dark: #2ed10f;
+      --accent2: rgba(57, 255, 20, 0.15);
+      --radius: 18px;
     }
 
     body {
-      background: radial-gradient(circle at top left, rgba(200,148,98,0.10), transparent 38%),
-                  linear-gradient(180deg, #0e141d 0%, #0a0f15 100%);
+      background: radial-gradient(circle at top left, rgba(57, 255, 20, 0.10), transparent 38%),
+                  linear-gradient(180deg, #0d0d0d 0%, #090909 100%);
       color: var(--text);
-      font-family: "Segoe UI", system-ui, sans-serif;
+      font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
       min-height: 100vh;
       line-height: 1.6;
+      background-attachment: fixed;
     }
 
     a { color: var(--accent); text-decoration: none; }
@@ -50,12 +55,20 @@
       color: var(--accent);
       margin-bottom: 14px;
     }
-    .hero h1 {
-      font-family: Georgia, "Times New Roman", serif;
+    .hero h1,
+    .hero h2,
+    h1,
+    h2,
+    h3 {
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
       font-size: clamp(2rem, 5vw, 3.2rem);
       font-weight: 700;
       line-height: 1.15;
       margin-bottom: 18px;
+    }
+
+    code, pre, pre.sample {
+      font-family: "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
     }
     .hero p {
       font-size: 1.1rem;
@@ -70,9 +83,10 @@
       font-weight: 600;
       font-size: 0.95rem;
       transition: opacity .15s;
+      border: 1px solid transparent;
     }
     .btn:hover { opacity: .82; text-decoration: none; }
-    .btn-primary { background: var(--accent); color: #0b0f14; }
+    .btn-primary { background: linear-gradient(180deg, #39ff14, var(--accent-dark)); color: #08100c; }
     .btn-ghost {
       border: 1px solid var(--border);
       color: var(--text);
@@ -86,6 +100,7 @@
       border: 1px solid var(--border);
       box-shadow: 0 20px 60px rgba(0,0,0,0.5);
       margin: 48px 0;
+      background: var(--card);
     }
     .screenshot-wrap img { display: block; width: 100%; height: auto; }
 
@@ -104,7 +119,7 @@
       gap: 16px;
     }
     .feature-card {
-      background: var(--card);
+      background: linear-gradient(180deg, var(--card), var(--card-soft));
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 22px;
