@@ -534,16 +534,16 @@ details summary {
 @media (min-width: 981px) {
   html,
   body {
-    height: 100%;
-    overflow: hidden;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .app-shell {
-    height: 100vh;
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    min-height: 100vh;
+    height: auto;
     padding: 12px;
     gap: 12px;
-    overflow-y: auto;
   }
 
   .topbar {
@@ -556,16 +556,6 @@ details summary {
 
   .hero-copy {
     display: none;
-  }
-
-  .composer-layout {
-    height: 100%;
-    align-items: stretch;
-  }
-
-  .preview-stage {
-    min-height: 0;
-    height: 100%;
   }
 
   .batch-layout {
