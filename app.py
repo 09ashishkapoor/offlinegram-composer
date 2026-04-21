@@ -124,8 +124,36 @@ def _paired_batch_inputs(image_dir: str, text_content: str) -> tuple[list[Path],
                 "Batch image count and text-entry count must match exactly. "
                 f"Found {len(images)} images and {len(entries)} text entries."
             ),
-        )
+    )
     return images, entries
+
+
+def _parse_quote_lines(quotes_text: str) -> list[str]:
+    quotes = [line.strip() for line in quotes_text.splitlines() if line.strip()]
+    if not quotes:
+        raise ProcessorError("The text file does not contain any usable entries.")
+    return quotes
+
+
+def _build_batch_quote_zones(preset_id: str, quote: str) -> list[dict[str, Any]]:
+    try:
+        return build_preset_zones(preset_id, quote)
+    except PresetConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _paired_quote_batch_inputs(image_dir: str, quotes_text: str) -> tuple[list[Path], list[str]]:
+    try:
+        images = list_images(image_dir)
+        quotes = _parse_quote_lines(quotes_text)
+    except ProcessorError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if not images:
+        raise HTTPException(status_code=400, detail="No supported images were found in the selected folder.")
+    if len(images) != len(quotes):
+        raise HTTPException(status_code=400, detail="Process stopped because quotes or images ran out.")
+    return images, quotes
 
 
 @app.get("/")
@@ -234,5 +262,56 @@ async def generate_batch(
     output_root = _validate_output_dir(output_dir)
     for image_path, entry in zip(images, entries):
         png_data = processor.render_from_path(image_path, entry["name"], entry["meaning"], zones)
+        files.append(str(save_png(output_root, png_data)))
+    return {"saved_count": len(files), "files": files}
+
+
+@app.post("/api/batch/quotes/preview")
+async def preview_batch_quotes(
+    quotes_file: UploadFile = File(...),
+    image_dir: str = Form(default=""),
+    preset_id: str | None = Form(default=None),
+    sample_count: int = Form(default=3),
+) -> dict[str, Any]:
+    if not image_dir:
+        raise HTTPException(status_code=400, detail="Select an image folder for batch mode.")
+    if not preset_id:
+        raise HTTPException(status_code=400, detail="Choose a preset.")
+
+    quotes_text = (await quotes_file.read()).decode("utf-8")
+    images, quotes = _paired_quote_batch_inputs(image_dir, quotes_text)
+    previews: list[dict[str, str]] = []
+    for image_path, quote in list(zip(images, quotes))[: max(1, min(sample_count, 5))]:
+        zones = _build_batch_quote_zones(preset_id, quote)
+        png_data = processor.render_from_path(image_path, "", "", zones)
+        previews.append(
+            {
+                "filename": image_path.name,
+                "quote": quote,
+                "image_b64": image_file_to_base64(png_data),
+            }
+        )
+    return {"previews": previews}
+
+
+@app.post("/api/batch/quotes/generate")
+async def generate_batch_quotes(
+    quotes_file: UploadFile = File(...),
+    image_dir: str = Form(default=""),
+    preset_id: str | None = Form(default=None),
+    output_dir: str = Form(default=""),
+) -> dict[str, Any]:
+    if not image_dir:
+        raise HTTPException(status_code=400, detail="Select an image folder for batch mode.")
+    if not preset_id:
+        raise HTTPException(status_code=400, detail="Choose a preset.")
+
+    quotes_text = (await quotes_file.read()).decode("utf-8")
+    images, quotes = _paired_quote_batch_inputs(image_dir, quotes_text)
+    output_root = _validate_output_dir(output_dir)
+    files: list[str] = []
+    for image_path, quote in zip(images, quotes):
+        zones = _build_batch_quote_zones(preset_id, quote)
+        png_data = processor.render_from_path(image_path, "", "", zones)
         files.append(str(save_png(output_root, png_data)))
     return {"saved_count": len(files), "files": files}

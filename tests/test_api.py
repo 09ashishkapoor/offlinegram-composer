@@ -26,7 +26,7 @@ def test_presets_endpoint():
     assert response.status_code == 200
     payload = response.json()
     assert payload["presets"]
-    assert payload["helper_text"] == "Presets are defined in the local app config file."
+    assert payload["helper_text"] == "Edit presets in presets.json (in this project root, next to app.py)."
 
 
 def test_preview_single_uses_preset_id(tmp_path: Path):
@@ -156,3 +156,64 @@ def test_batch_preview_and_generate(tmp_path: Path):
     assert payload["saved_count"] == 2
     for file_path in payload["files"]:
         assert Path(file_path).exists()
+
+
+def test_batch_quote_preview_returns_samples(tmp_path: Path):
+    image_dir = tmp_path / "images"
+    image_dir.mkdir()
+    create_image(image_dir / "001.png", (10, 10, 10, 255))
+    create_image(image_dir / "002.png", (20, 20, 20, 255))
+    quotes_file = tmp_path / "quotes.txt"
+    quotes_file.write_text("Quote one\nQuote two\n", encoding="utf-8")
+
+    with quotes_file.open("rb") as file_handle:
+        response = client.post(
+            "/api/batch/quotes/preview",
+            files={"quotes_file": ("quotes.txt", file_handle, "text/plain")},
+            data={"image_dir": str(image_dir), "preset_id": "preset_1", "sample_count": "2"},
+        )
+
+    assert response.status_code == 200
+    assert len(response.json()["previews"]) == 2
+
+
+def test_batch_quote_generate_writes_all_files(tmp_path: Path):
+    image_dir = tmp_path / "images"
+    output_dir = tmp_path / "generated"
+    image_dir.mkdir()
+    create_image(image_dir / "001.png", (10, 10, 10, 255))
+    create_image(image_dir / "002.png", (20, 20, 20, 255))
+    quotes_file = tmp_path / "quotes.txt"
+    quotes_file.write_text("Quote one\nQuote two\n", encoding="utf-8")
+
+    with quotes_file.open("rb") as file_handle:
+        response = client.post(
+            "/api/batch/quotes/generate",
+            files={"quotes_file": ("quotes.txt", file_handle, "text/plain")},
+            data={"image_dir": str(image_dir), "preset_id": "preset_1", "output_dir": str(output_dir)},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["saved_count"] == 2
+    for file_path in payload["files"]:
+        assert Path(file_path).exists()
+
+
+def test_batch_quote_generate_stops_on_count_mismatch(tmp_path: Path):
+    image_dir = tmp_path / "images"
+    output_dir = tmp_path / "out"
+    image_dir.mkdir()
+    create_image(image_dir / "001.png", (10, 10, 10, 255))
+    quotes_file = tmp_path / "quotes.txt"
+    quotes_file.write_text("Quote one\nQuote two\n", encoding="utf-8")
+
+    with quotes_file.open("rb") as file_handle:
+        response = client.post(
+            "/api/batch/quotes/generate",
+            files={"quotes_file": ("quotes.txt", file_handle, "text/plain")},
+            data={"image_dir": str(image_dir), "preset_id": "preset_1", "output_dir": str(output_dir)},
+        )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Process stopped because quotes or images ran out."
