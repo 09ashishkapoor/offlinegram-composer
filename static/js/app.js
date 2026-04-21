@@ -71,6 +71,8 @@ const elements = {
   closeBrowser: document.getElementById("close-browser"),
 };
 
+const BATCH_PREVIEW_SAMPLE_COUNT = 3;
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -150,7 +152,7 @@ function setPreview(base64, meta = "Preview ready.") {
   elements.previewMeta.textContent = meta;
 }
 
-function resetBatchPreview(copy = "Choose a quote file and image folder to build a preview.") {
+function resetBatchPreview(copy = "Choose a quote file and image folder to build sample previews.") {
   state.batch.previews = [];
   elements.batchMeta.textContent = copy;
   elements.batchPreviewGrid.innerHTML = `<div class="muted">${escapeHtml(copy)}</div>`;
@@ -334,6 +336,8 @@ function createBatchFormData(includeOutputDir = false) {
 
   if (includeOutputDir) {
     data.append("output_dir", state.batch.outputDir);
+  } else {
+    data.append("sample_count", String(BATCH_PREVIEW_SAMPLE_COUNT));
   }
 
   return data;
@@ -397,12 +401,13 @@ async function previewBatch() {
   ensureBatchInputs();
 
   setBatchBusy(true);
-  elements.batchMeta.textContent = "Rendering batch preview...";
+  elements.batchMeta.textContent = "Rendering sample previews...";
   try {
     const payload = await requestBatchPreview();
     state.batch.previews = payload.previews || [];
     renderBatchPreviewCards();
-    elements.batchMeta.textContent = `${state.batch.previews.length} preview${state.batch.previews.length === 1 ? "" : "s"} ready.`;
+    const previewCount = state.batch.previews.length;
+    elements.batchMeta.textContent = `Showing ${previewCount} sample preview${previewCount === 1 ? "" : "s"}.`;
   } finally {
     setBatchBusy(false);
   }
@@ -635,7 +640,7 @@ elements.batchQuotesUpload.addEventListener("change", (event) => {
 
 elements.batchPreviewButton.addEventListener("click", () => {
   previewBatch().catch((error) => {
-    resetBatchPreview(error.message);
+    elements.batchMeta.textContent = error.message;
     showToast(error.message, true);
   });
 });
@@ -706,5 +711,5 @@ updatePathPills();
 updateBatchPathPills();
 renderBusyState();
 resetPreview("Preview appears here.");
-resetBatchPreview("Choose a quote file and image folder to build a preview.");
+resetBatchPreview("Choose a quote file and image folder to build sample previews.");
 loadPresets().catch((error) => showToast(error.message, true));
