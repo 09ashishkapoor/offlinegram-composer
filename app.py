@@ -12,6 +12,12 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
 from presets import PresetConfigError, build_preset_zones, load_preset_catalog
+try:
+    from presets import build_batch_quote_zones
+except ImportError:
+    def build_batch_quote_zones(preset_id: str, quote: str) -> list[dict[str, Any]]:
+        return build_preset_zones(preset_id, quote)
+
 from processor import (
     BASE_DIR,
     DEFAULT_ZONES,
@@ -28,6 +34,14 @@ from processor import (
     parse_text_entries,
     save_png,
 )
+try:
+    from processor import parse_quote_lines
+except ImportError:
+    def parse_quote_lines(quotes_text: str) -> list[str]:
+        quotes = [line.strip() for line in quotes_text.splitlines() if line.strip()]
+        if not quotes:
+            raise ProcessorError("The text file does not contain any usable entries.")
+        return quotes
 
 
 processor = SkiaProcessor(FONTS_DIR)
@@ -128,24 +142,10 @@ def _paired_batch_inputs(image_dir: str, text_content: str) -> tuple[list[Path],
     return images, entries
 
 
-def _parse_quote_lines(quotes_text: str) -> list[str]:
-    quotes = [line.strip() for line in quotes_text.splitlines() if line.strip()]
-    if not quotes:
-        raise ProcessorError("The text file does not contain any usable entries.")
-    return quotes
-
-
-def _build_batch_quote_zones(preset_id: str, quote: str) -> list[dict[str, Any]]:
-    try:
-        return build_preset_zones(preset_id, quote)
-    except PresetConfigError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
 def _paired_quote_batch_inputs(image_dir: str, quotes_text: str) -> tuple[list[Path], list[str]]:
     try:
         images = list_images(image_dir)
-        quotes = _parse_quote_lines(quotes_text)
+        quotes = parse_quote_lines(quotes_text)
     except ProcessorError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -282,7 +282,7 @@ async def preview_batch_quotes(
     images, quotes = _paired_quote_batch_inputs(image_dir, quotes_text)
     previews: list[dict[str, str]] = []
     for image_path, quote in list(zip(images, quotes))[: max(1, min(sample_count, 5))]:
-        zones = _build_batch_quote_zones(preset_id, quote)
+        zones = build_batch_quote_zones(preset_id, quote)
         png_data = processor.render_from_path(image_path, "", "", zones)
         previews.append(
             {
@@ -311,7 +311,7 @@ async def generate_batch_quotes(
     output_root = _validate_output_dir(output_dir)
     files: list[str] = []
     for image_path, quote in zip(images, quotes):
-        zones = _build_batch_quote_zones(preset_id, quote)
+        zones = build_batch_quote_zones(preset_id, quote)
         png_data = processor.render_from_path(image_path, "", "", zones)
         files.append(str(save_png(output_root, png_data)))
     return {"saved_count": len(files), "files": files}
