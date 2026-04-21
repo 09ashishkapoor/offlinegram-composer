@@ -158,39 +158,73 @@ def test_batch_preview_and_generate(tmp_path: Path):
         assert Path(file_path).exists()
 
 
-def test_batch_quote_preview_returns_samples(tmp_path: Path):
+def test_batch_quotes_preview_success(tmp_path: Path):
     image_dir = tmp_path / "images"
     image_dir.mkdir()
     create_image(image_dir / "001.png", (10, 10, 10, 255))
-    create_image(image_dir / "002.png", (20, 20, 20, 255))
-    quotes_file = tmp_path / "quotes.txt"
-    quotes_file.write_text("Quote one\nQuote two\n", encoding="utf-8")
+    create_image(image_dir / "002.png", (30, 30, 30, 255))
 
-    with quotes_file.open("rb") as file_handle:
+    text_file = tmp_path / "quotes.txt"
+    text_file.write_text("First quote\nSecond quote\n", encoding="utf-8")
+
+    with text_file.open("rb") as file_handle:
         response = client.post(
             "/api/batch/quotes/preview",
-            files={"quotes_file": ("quotes.txt", file_handle, "text/plain")},
-            data={"image_dir": str(image_dir), "preset_id": "preset_1", "sample_count": "2"},
+            files={"text_file": ("quotes.txt", file_handle, "text/plain")},
+            data={
+                "image_dir": str(image_dir),
+                "preset_id": "preset_1",
+            },
         )
 
     assert response.status_code == 200
-    assert len(response.json()["previews"]) == 2
+    payload = response.json()
+    assert len(payload["previews"]) == 2
+    assert [item["quote"] for item in payload["previews"]] == ["First quote", "Second quote"]
 
 
-def test_batch_quote_generate_writes_all_files(tmp_path: Path):
+def test_batch_quotes_preview_count_mismatch(tmp_path: Path):
+    image_dir = tmp_path / "images"
+    image_dir.mkdir()
+    create_image(image_dir / "001.png", (10, 10, 10, 255))
+    create_image(image_dir / "002.png", (30, 30, 30, 255))
+
+    text_file = tmp_path / "quotes.txt"
+    text_file.write_text("Only one quote\n", encoding="utf-8")
+
+    with text_file.open("rb") as file_handle:
+        response = client.post(
+            "/api/batch/quotes/preview",
+            files={"text_file": ("quotes.txt", file_handle, "text/plain")},
+            data={
+                "image_dir": str(image_dir),
+                "preset_id": "preset_1",
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Process stopped because quotes or images ran out."
+
+
+def test_batch_quotes_generate_success(tmp_path: Path):
     image_dir = tmp_path / "images"
     output_dir = tmp_path / "generated"
     image_dir.mkdir()
     create_image(image_dir / "001.png", (10, 10, 10, 255))
-    create_image(image_dir / "002.png", (20, 20, 20, 255))
-    quotes_file = tmp_path / "quotes.txt"
-    quotes_file.write_text("Quote one\nQuote two\n", encoding="utf-8")
+    create_image(image_dir / "002.png", (30, 30, 30, 255))
 
-    with quotes_file.open("rb") as file_handle:
+    text_file = tmp_path / "quotes.txt"
+    text_file.write_text("First quote\nSecond quote\n", encoding="utf-8")
+
+    with text_file.open("rb") as file_handle:
         response = client.post(
             "/api/batch/quotes/generate",
-            files={"quotes_file": ("quotes.txt", file_handle, "text/plain")},
-            data={"image_dir": str(image_dir), "preset_id": "preset_1", "output_dir": str(output_dir)},
+            files={"text_file": ("quotes.txt", file_handle, "text/plain")},
+            data={
+                "image_dir": str(image_dir),
+                "preset_id": "preset_1",
+                "output_dir": str(output_dir),
+            },
         )
 
     assert response.status_code == 200
@@ -200,19 +234,25 @@ def test_batch_quote_generate_writes_all_files(tmp_path: Path):
         assert Path(file_path).exists()
 
 
-def test_batch_quote_generate_stops_on_count_mismatch(tmp_path: Path):
+def test_batch_quotes_generate_count_mismatch(tmp_path: Path):
     image_dir = tmp_path / "images"
-    output_dir = tmp_path / "out"
+    output_dir = tmp_path / "generated"
     image_dir.mkdir()
     create_image(image_dir / "001.png", (10, 10, 10, 255))
-    quotes_file = tmp_path / "quotes.txt"
-    quotes_file.write_text("Quote one\nQuote two\n", encoding="utf-8")
+    create_image(image_dir / "002.png", (30, 30, 30, 255))
 
-    with quotes_file.open("rb") as file_handle:
+    text_file = tmp_path / "quotes.txt"
+    text_file.write_text("Only one quote\n", encoding="utf-8")
+
+    with text_file.open("rb") as file_handle:
         response = client.post(
             "/api/batch/quotes/generate",
-            files={"quotes_file": ("quotes.txt", file_handle, "text/plain")},
-            data={"image_dir": str(image_dir), "preset_id": "preset_1", "output_dir": str(output_dir)},
+            files={"text_file": ("quotes.txt", file_handle, "text/plain")},
+            data={
+                "image_dir": str(image_dir),
+                "preset_id": "preset_1",
+                "output_dir": str(output_dir),
+            },
         )
 
     assert response.status_code == 400

@@ -1,8 +1,9 @@
-﻿from pathlib import Path
+import json
+from pathlib import Path
 
 import pytest
 
-from presets import PresetConfigError, build_preset_zones, list_presets
+from presets import PresetConfigError, build_batch_quote_zones, build_preset_zones, list_presets
 
 
 def write_config(path: Path) -> Path:
@@ -84,3 +85,60 @@ def test_list_presets_returns_two_launch_presets(tmp_path: Path):
     config_path.write_text(Path("presets.json").read_text(encoding="utf-8"), encoding="utf-8")
     presets = list_presets(config_path)
     assert [preset["id"] for preset in presets] == ["preset_1", "preset_2"]
+
+
+def test_build_batch_quote_zones_sets_single_custom_zone(tmp_path: Path):
+    config_path = write_config(tmp_path / "batch_quote_presets.json")
+    zones = build_batch_quote_zones("preset_1", "Stay steady", config_path=config_path)
+    custom_zones = [zone for zone in zones if zone.get("type") == "text" and zone.get("text_source") == "custom"]
+    assert len(custom_zones) == 1
+    assert custom_zones[0]["custom_text"] == "Stay steady"
+
+
+def test_build_batch_quote_zones_rejects_zero_custom_text_zones(tmp_path: Path):
+    config_path = tmp_path / "presets.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "presets": [
+                    {
+                        "id": "bad",
+                        "label": "Bad",
+                        "description": "No custom zones",
+                        "zones": [
+                            {"id": "a", "type": "text", "text_source": "name", "custom_text": ""},
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PresetConfigError, match="exactly one custom text zone"):
+        build_batch_quote_zones("bad", "Stay steady", config_path=config_path)
+
+
+def test_build_batch_quote_zones_rejects_multiple_custom_text_zones(tmp_path: Path):
+    config_path = tmp_path / "presets.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "presets": [
+                    {
+                        "id": "bad",
+                        "label": "Bad",
+                        "description": "Too many custom zones",
+                        "zones": [
+                            {"id": "a", "type": "text", "text_source": "custom", "custom_text": ""},
+                            {"id": "b", "type": "text", "text_source": "custom", "custom_text": ""},
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PresetConfigError, match="exactly one custom text zone"):
+        build_batch_quote_zones("bad", "Stay steady", config_path=config_path)

@@ -1,9 +1,10 @@
-﻿from pathlib import Path
+from pathlib import Path
 
+import pytest
 from PIL import Image
 
 from presets import build_preset_zones
-from processor import DEFAULT_ZONES, FONTS_DIR, SkiaProcessor
+from processor import DEFAULT_ZONES, FONTS_DIR, ProcessorError, SkiaProcessor, parse_quote_lines
 
 
 def make_sample_image(tmp_path: Path) -> Path:
@@ -110,3 +111,13 @@ def test_preset_2_renders_with_background_box(tmp_path: Path):
     assert zones[0]["bg_shape"] == "rectangle"
     output = processor.render_from_path(make_sample_image(tmp_path), "", "", zones)
     assert output.startswith(b"\x89PNG")
+
+
+def test_parse_quote_lines_ignores_blank_lines():
+    entries = parse_quote_lines("First quote\n\nSecond quote\n  \nThird quote\n")
+    assert entries == ["First quote", "Second quote", "Third quote"]
+
+
+def test_parse_quote_lines_rejects_empty_input():
+    with pytest.raises(ProcessorError, match="does not contain any usable quotes"):
+        parse_quote_lines("\n   \n")

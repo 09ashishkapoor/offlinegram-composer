@@ -61,17 +61,36 @@ def list_presets(config_path: Path = PRESETS_CONFIG_PATH) -> list[dict[str, str]
     ]
 
 
+def _get_preset_zones(preset_id: str, config_path: Path) -> list[dict[str, Any]]:
+    for preset in load_preset_catalog(config_path):
+        if preset["id"] == preset_id:
+            return [dict(zone) for zone in preset["zones"]]
+    raise PresetConfigError(f"Unknown preset '{preset_id}'.")
+
+
 def build_preset_zones(
     preset_id: str,
     text: str,
     config_path: Path = PRESETS_CONFIG_PATH,
 ) -> list[dict[str, Any]]:
-    for preset in load_preset_catalog(config_path):
-        if preset["id"] == preset_id:
-            zones = [dict(zone) for zone in preset["zones"]]
-            for zone in zones:
-                if zone.get("type") == "text" and zone.get("text_source") == "custom":
-                    zone["custom_text"] = text
-            return zones
+    zones = _get_preset_zones(preset_id, config_path)
+    for zone in zones:
+        if zone.get("type") == "text" and zone.get("text_source") == "custom":
+            zone["custom_text"] = text
+    return zones
 
-    raise PresetConfigError(f"Unknown preset '{preset_id}'.")
+
+def build_batch_quote_zones(
+    preset_id: str,
+    quote: str,
+    config_path: Path = PRESETS_CONFIG_PATH,
+) -> list[dict[str, Any]]:
+    zones = _get_preset_zones(preset_id, config_path)
+    custom_text_zones = [
+        zone for zone in zones if zone.get("type") == "text" and zone.get("text_source") == "custom"
+    ]
+    if len(custom_text_zones) != 1:
+        raise PresetConfigError("Batch mode requires a preset with exactly one custom text zone.")
+
+    custom_text_zones[0]["custom_text"] = quote
+    return zones
