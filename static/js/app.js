@@ -18,6 +18,13 @@
     preview: "",
     overlayDraft: null,
   },
+  batch: {
+    imageDir: "",
+    quotesFile: null,
+    outputDir: "",
+    previews: [],
+    busy: false,
+  },
 };
 
 const elements = {
@@ -34,6 +41,16 @@ const elements = {
   exportButton: document.getElementById("spc-export"),
   browseImageButton: document.getElementById("spc-browse-image"),
   browseOutputButton: document.getElementById("spc-browse-output"),
+  batchBrowseImagesButton: document.getElementById("batch-browse-images"),
+  batchImageDir: document.getElementById("batch-image-dir"),
+  batchQuotesUpload: document.getElementById("batch-quotes-upload"),
+  batchQuotesFile: document.getElementById("batch-quotes-file"),
+  batchBrowseOutputButton: document.getElementById("batch-browse-output"),
+  batchOutputDir: document.getElementById("batch-output-dir"),
+  batchPreviewButton: document.getElementById("batch-preview"),
+  batchExportButton: document.getElementById("batch-export"),
+  batchPreviewGrid: document.getElementById("batch-preview-grid"),
+  batchMeta: document.getElementById("batch-meta"),
   advancedToggle: document.getElementById("advanced-toggle"),
   advancedControls: document.getElementById("advanced-controls"),
   dropZone: document.getElementById("spc-drop-zone"),
@@ -76,10 +93,17 @@ function showToast(message, isError = false) {
 function renderBusyState() {
   elements.previewButton.disabled = state.busy;
   elements.exportButton.disabled = state.busy;
+  elements.batchPreviewButton.disabled = state.batch.busy;
+  elements.batchExportButton.disabled = state.batch.busy;
 }
 
 function setBusy(isBusy) {
   state.busy = isBusy;
+  renderBusyState();
+}
+
+function setBatchBusy(isBusy) {
+  state.batch.busy = isBusy;
   renderBusyState();
 }
 
@@ -94,6 +118,19 @@ function updatePathPills() {
   elements.imageSource.title = source;
   elements.outputPath.textContent = output;
   elements.outputPath.title = output;
+}
+
+function updateBatchPathPills() {
+  const imageDir = state.batch.imageDir || "No image folder selected";
+  const quotesFile = state.batch.quotesFile?.name || "No quotes file selected";
+  const outputDir = state.batch.outputDir || "No output folder selected";
+
+  elements.batchImageDir.textContent = imageDir;
+  elements.batchImageDir.title = imageDir;
+  elements.batchQuotesFile.textContent = quotesFile;
+  elements.batchQuotesFile.title = quotesFile;
+  elements.batchOutputDir.textContent = outputDir;
+  elements.batchOutputDir.title = outputDir;
 }
 
 function resetPreview(copy = "Preview appears here.") {
@@ -113,12 +150,55 @@ function setPreview(base64, meta = "Preview ready.") {
   elements.previewMeta.textContent = meta;
 }
 
+function resetBatchPreview(copy = "Choose a quote file and image folder to build a preview.") {
+  state.batch.previews = [];
+  elements.batchMeta.textContent = copy;
+  elements.batchPreviewGrid.innerHTML = `<div class="muted">${escapeHtml(copy)}</div>`;
+}
+
+function renderBatchPreviewCards() {
+  if (!state.batch.previews.length) {
+    resetBatchPreview();
+    return;
+  }
+
+  elements.batchPreviewGrid.innerHTML = state.batch.previews
+    .map(
+      (preview) => `
+        <article class="batch-preview-card">
+          <img src="data:image/png;base64,${preview.image_b64}" alt="${escapeHtml(preview.filename)} preview">
+          <p><strong>${escapeHtml(preview.filename)}</strong></p>
+          <p class="batch-preview-quote">${escapeHtml(preview.quote)}</p>
+        </article>
+      `,
+    )
+    .join("");
+}
+
 function modeConfig(mode) {
   if (mode === "image") {
     return {
       title: "Choose Image",
       helper: "Pick one source image for the composer.",
       useCurrentFolder: false,
+      currentLabel: "Use folder",
+      selectedLabel: "Use image",
+    };
+  }
+  if (mode === "batch-images") {
+    return {
+      title: "Choose Batch Image Folder",
+      helper: "Navigate to the source image folder and use the current folder.",
+      useCurrentFolder: true,
+      currentLabel: "Use folder",
+      selectedLabel: "Use image",
+    };
+  }
+  if (mode === "batch-output") {
+    return {
+      title: "Choose Batch Output Folder",
+      helper: "Navigate to the destination folder and use the current folder.",
+      useCurrentFolder: true,
       currentLabel: "Use folder",
       selectedLabel: "Use image",
     };
@@ -229,6 +309,50 @@ function createSingleImageFormData(includeOutputDir = false) {
   return data;
 }
 
+function ensureBatchInputs({ includeOutputDir = false } = {}) {
+  if (!state.batch.imageDir) {
+    throw new Error("Choose an image folder for batch mode.");
+  }
+  if (!state.batch.quotesFile) {
+    throw new Error("Upload a quotes file first.");
+  }
+  if (!state.activePresetId) {
+    throw new Error("Choose a preset.");
+  }
+  if (includeOutputDir && !state.batch.outputDir) {
+    throw new Error("Choose an output folder first.");
+  }
+}
+
+function createBatchFormData(includeOutputDir = false) {
+  ensureBatchInputs({ includeOutputDir });
+
+  const data = new FormData();
+  data.append("text_file", state.batch.quotesFile);
+  data.append("image_dir", state.batch.imageDir);
+  data.append("preset_id", state.activePresetId || "");
+
+  if (includeOutputDir) {
+    data.append("output_dir", state.batch.outputDir);
+  }
+
+  return data;
+}
+
+async function requestBatchPreview() {
+  return fetchJson("/api/batch/quotes/preview", {
+    method: "POST",
+    body: createBatchFormData(false),
+  });
+}
+
+async function requestBatchGenerate() {
+  return fetchJson("/api/batch/quotes/generate", {
+    method: "POST",
+    body: createBatchFormData(true),
+  });
+}
+
 async function previewCurrent() {
   if (!hasImageSource()) {
     throw new Error("Choose an image first.");
@@ -266,6 +390,36 @@ async function exportCurrent() {
     elements.previewMeta.textContent = `Saved to ${payload.saved_to}`;
   } finally {
     setBusy(false);
+  }
+}
+
+async function previewBatch() {
+  ensureBatchInputs();
+
+  setBatchBusy(true);
+  elements.batchMeta.textContent = "Rendering batch preview...";
+  try {
+    const payload = await requestBatchPreview();
+    state.batch.previews = payload.previews || [];
+    renderBatchPreviewCards();
+    elements.batchMeta.textContent = `${state.batch.previews.length} preview${state.batch.previews.length === 1 ? "" : "s"} ready.`;
+  } finally {
+    setBatchBusy(false);
+  }
+}
+
+async function exportBatch() {
+  ensureBatchInputs({ includeOutputDir: true });
+
+  setBatchBusy(true);
+  elements.batchMeta.textContent = "Exporting batch images...";
+  try {
+    const payload = await requestBatchGenerate();
+    const savedCount = Number(payload.saved_count) || 0;
+    showToast(`Saved ${savedCount} batch image${savedCount === 1 ? "" : "s"}.`);
+    elements.batchMeta.textContent = `Saved ${savedCount} file${savedCount === 1 ? "" : "s"} to ${state.batch.outputDir}`;
+  } finally {
+    setBatchBusy(false);
   }
 }
 
@@ -382,6 +536,21 @@ function selectBrowserPath(path) {
     state.spc.outputDir = path;
   }
 
+  if (state.browser.mode === "batch-images") {
+    state.batch.imageDir = path;
+    updateBatchPathPills();
+    resetBatchPreview();
+    closeBrowser();
+    return;
+  }
+
+  if (state.browser.mode === "batch-output") {
+    state.batch.outputDir = path;
+    updateBatchPathPills();
+    closeBrowser();
+    return;
+  }
+
   updatePathPills();
   closeBrowser();
 }
@@ -437,6 +606,7 @@ elements.presetOptions.addEventListener("click", (event) => {
   state.activePresetId = button.dataset.presetId;
   state.spc.overlayDraft = null;
   renderPresetOptions();
+  resetBatchPreview();
   if (elements.advancedToggle.open) {
     state.spc.overlayDraft = buildDraftFromSelectedPreset();
     renderAdvancedControls();
@@ -453,6 +623,26 @@ elements.exportButton.addEventListener("click", () => {
 
 elements.browseImageButton.addEventListener("click", () => openBrowser("image"));
 elements.browseOutputButton.addEventListener("click", () => openBrowser("output"));
+elements.batchBrowseImagesButton.addEventListener("click", () => openBrowser("batch-images"));
+elements.batchBrowseOutputButton.addEventListener("click", () => openBrowser("batch-output"));
+
+elements.batchQuotesUpload.addEventListener("change", (event) => {
+  const [file] = event.target.files || [];
+  state.batch.quotesFile = file || null;
+  updateBatchPathPills();
+  resetBatchPreview();
+});
+
+elements.batchPreviewButton.addEventListener("click", () => {
+  previewBatch().catch((error) => {
+    resetBatchPreview(error.message);
+    showToast(error.message, true);
+  });
+});
+
+elements.batchExportButton.addEventListener("click", () => {
+  exportBatch().catch((error) => showToast(error.message, true));
+});
 
 if (elements.advancedToggle) {
   elements.advancedToggle.addEventListener("toggle", () => {
@@ -513,6 +703,8 @@ elements.browserUseSelected.addEventListener("click", () => {
 
 wireDragAndDrop();
 updatePathPills();
+updateBatchPathPills();
 renderBusyState();
 resetPreview("Preview appears here.");
+resetBatchPreview("Choose a quote file and image folder to build a preview.");
 loadPresets().catch((error) => showToast(error.message, true));
