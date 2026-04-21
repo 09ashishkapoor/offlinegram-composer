@@ -84,6 +84,66 @@
       </aside>
     </main>
 
+    <section class="batch-section" aria-labelledby="batch-mode-title">
+      <div class="batch-layout">
+        <section class="panel-card batch-header-card">
+          <p class="eyebrow">Batch Mode</p>
+          <h2 id="batch-mode-title">Quotes to images</h2>
+          <p class="helper-text">One quote per line. Images and quotes must match exactly.</p>
+        </section>
+
+        <section class="panel-card batch-control-card">
+          <div class="batch-input-group">
+            <p class="eyebrow">Images</p>
+            <div class="compact-drop">
+              <div class="inline-row">
+                <button class="ghost-button" id="batch-browse-images" type="button">Choose image folder</button>
+                <span class="path-pill" id="batch-image-dir">No image folder selected</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="batch-input-group">
+            <p class="eyebrow">Quotes</p>
+            <label class="compact-drop" for="batch-quotes-upload">
+              <input id="batch-quotes-upload" type="file" accept=".txt,.md,text/plain">
+              <span class="drop-title">Upload quotes file</span>
+              <span class="drop-hint">Plain text with one quote per line.</span>
+            </label>
+            <div class="inline-row">
+              <span class="path-pill" id="batch-quotes-file">No quotes file selected</span>
+            </div>
+          </div>
+
+          <div class="batch-input-group">
+            <p class="eyebrow">Output</p>
+            <div class="compact-drop">
+              <div class="inline-row">
+                <button class="ghost-button" id="batch-browse-output" type="button">Choose output folder</button>
+                <span class="path-pill" id="batch-output-dir">No output folder selected</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="button-row batch-actions">
+            <button class="primary-button" id="batch-preview" type="button">Preview batch</button>
+            <button class="primary-button" id="batch-export" type="button">Export batch</button>
+          </div>
+        </section>
+
+        <section class="panel-card batch-preview-card">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Batch Preview</p>
+              <h2>Review pairings</h2>
+            </div>
+            <p id="batch-meta" class="helper-text">Choose a quote file and image folder to build a preview.</p>
+          </div>
+          <div id="batch-preview-grid" class="batch-preview-grid"></div>
+        </section>
+      </div>
+    </section>
+
     <div id="browser-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="browser-title">
       <div class="modal-card browser-modal-card">
         <div class="modal-header">
