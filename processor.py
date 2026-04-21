@@ -136,6 +136,13 @@ def parse_text_entries(text: str) -> list[dict[str, str]]:
     return entries
 
 
+def parse_quote_lines(text: str) -> list[str]:
+    quotes = [line.strip() for line in text.splitlines() if line.strip()]
+    if not quotes:
+        raise ProcessorError("The text file does not contain any usable quotes.")
+    return quotes
+
+
 def list_font_choices(fonts_dir: Path = FONTS_DIR) -> list[dict[str, str]]:
     if not fonts_dir.exists():
         return []
