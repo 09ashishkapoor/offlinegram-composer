@@ -11,7 +11,14 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
-from presets import PresetConfigError, build_batch_quote_zones, build_preset_zones, load_preset_catalog
+from presets import (
+    PresetConfigError,
+    build_batch_quote_zones,
+    build_batch_structured_zones,
+    build_preset_zones,
+    load_preset_catalog,
+    resolve_batch_preset_mode,
+)
 from processor import (
     BASE_DIR,
     DEFAULT_ZONES,
@@ -26,6 +33,7 @@ from processor import (
     list_images,
     normalize_zones,
     parse_quote_lines,
+    parse_structured_text_lines,
     parse_text_entries,
     pick_native_path,
     save_png,
@@ -74,18 +82,52 @@ def _parse_overlay_json(overlay_json: str | None) -> list[dict[str, Any]] | None
     return payload
 
 
-def _resolve_single_image_zones(
+def _parse_single_image_structured_text_values(text: str) -> dict[str, str]:
+    stripped = text.strip()
+    if not stripped:
+        return {
+            "number": "",
+            "name": "",
+            "title": "",
+            "subtitle": "",
+            "caption": "",
+        }
+
+    try:
+        return parse_structured_text_lines(stripped)[0]
+    except ProcessorError:
+        pass
+
+    parts = [line.strip() for line in stripped.splitlines() if line.strip()]
+    return {
+        "number": parts[0] if len(parts) >= 1 else "",
+        "name": parts[1] if len(parts) >= 2 else "",
+        "title": parts[0] if len(parts) >= 1 else "",
+        "subtitle": parts[1] if len(parts) >= 2 else "",
+        "caption": " ".join(parts[2:]) if len(parts) >= 3 else "",
+    }
+
+
+def _resolve_single_image_render_context(
     preset_id: str | None,
     text: str,
     overlay_json: str | None,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], dict[str, str] | None]:
     overlay = _parse_overlay_json(overlay_json)
     if overlay is not None:
-        return overlay
+        if preset_id:
+            try:
+                if resolve_batch_preset_mode(preset_id) == "structured":
+                    return overlay, _parse_single_image_structured_text_values(text)
+            except PresetConfigError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return overlay, None
     if not preset_id:
         raise HTTPException(status_code=400, detail="Choose a preset.")
     try:
-        return build_preset_zones(preset_id, text)
+        if resolve_batch_preset_mode(preset_id) == "structured":
+            return build_batch_structured_zones(preset_id), _parse_single_image_structured_text_values(text)
+        return build_preset_zones(preset_id, text), None
     except PresetConfigError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -171,6 +213,40 @@ def _paired_quote_batch_inputs(image_dir: str, text_content: str) -> tuple[list[
     return images, quotes
 
 
+def _paired_preset_batch_inputs(
+    image_dir: str,
+    text_content: str,
+    preset_id: str,
+) -> tuple[list[Path], list[Any], str]:
+    try:
+        images = list_images(image_dir)
+        batch_mode = resolve_batch_preset_mode(preset_id)
+        entries: list[Any]
+        if batch_mode == "structured":
+            entries = parse_structured_text_lines(text_content)
+        else:
+            entries = parse_quote_lines(text_content)
+    except (PresetConfigError, ProcessorError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if not images:
+        raise HTTPException(status_code=400, detail="No supported images were found in the selected folder.")
+    if len(images) != len(entries):
+        if batch_mode == "structured":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Batch image count and structured-entry count must match exactly. "
+                    f"Found {len(images)} images and {len(entries)} structured entries."
+                ),
+            )
+        raise HTTPException(
+            status_code=400,
+            detail="Process stopped because quotes or images ran out.",
+        )
+    return images, entries, batch_mode
+
+
 @app.get("/")
 async def index() -> FileResponse:
     return FileResponse(TEMPLATES_DIR / "index.html")
@@ -230,9 +306,9 @@ async def preview_single(
     text: str = Form(default=""),
     overlay_json: str | None = Form(default=None),
 ) -> dict[str, str]:
-    zones = _resolve_single_image_zones(preset_id, text, overlay_json)
+    zones, text_values = _resolve_single_image_render_context(preset_id, text, overlay_json)
     base_image = await _load_single_image(image, image_path)
-    png_data = processor.render_image(base_image, name="", meaning="", zones=zones)
+    png_data = processor.render_image(base_image, name="", meaning="", zones=zones, text_values=text_values)
     return {"image_b64": image_file_to_base64(png_data)}
 
 
@@ -245,9 +321,9 @@ async def generate_single(
     overlay_json: str | None = Form(default=None),
     output_dir: str = Form(default=""),
 ) -> dict[str, Any]:
-    zones = _resolve_single_image_zones(preset_id, text, overlay_json)
+    zones, text_values = _resolve_single_image_render_context(preset_id, text, overlay_json)
     base_image = await _load_single_image(image, image_path)
-    png_data = processor.render_image(base_image, name="", meaning="", zones=zones)
+    png_data = processor.render_image(base_image, name="", meaning="", zones=zones, text_values=text_values)
     saved_path = save_png(_validate_output_dir(output_dir), png_data)
     return {"saved_to": str(saved_path), "filename": saved_path.name}
 
@@ -314,22 +390,43 @@ async def preview_batch_quotes(
         raise HTTPException(status_code=400, detail="Choose a preset.")
 
     text_content = await _read_text_content(text_file, text_path)
-    images, quotes = _paired_quote_batch_inputs(image_dir, text_content)
+    images, entries, batch_mode = _paired_preset_batch_inputs(image_dir, text_content, preset_id)
     previews: list[dict[str, str]] = []
-    for image_path, quote in list(zip(images, quotes))[: max(1, min(sample_count, 5))]:
+    for image_path, entry in list(zip(images, entries))[: max(1, min(sample_count, 5))]:
         try:
-            zones = build_batch_quote_zones(preset_id, quote)
+            if batch_mode == "structured":
+                zones = build_batch_structured_zones(preset_id)
+                png_data = processor.render_from_path(
+                    image_path,
+                    name="",
+                    meaning="",
+                    zones=zones,
+                    text_values=entry,
+                )
+                previews.append(
+                    {
+                        "filename": image_path.name,
+                        "number": entry["number"],
+                        "name": entry["name"],
+                        "title": entry["title"],
+                        "subtitle": entry["subtitle"],
+                        "caption": entry["caption"],
+                        "image_b64": image_file_to_base64(png_data),
+                    }
+                )
+            else:
+                zones = build_batch_quote_zones(preset_id, entry)
+                png_data = processor.render_from_path(image_path, name="", meaning="", zones=zones)
+                previews.append(
+                    {
+                        "filename": image_path.name,
+                        "quote": entry,
+                        "image_b64": image_file_to_base64(png_data),
+                    }
+                )
         except PresetConfigError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        png_data = processor.render_from_path(image_path, name="", meaning="", zones=zones)
-        previews.append(
-            {
-                "filename": image_path.name,
-                "quote": quote,
-                "image_b64": image_file_to_base64(png_data),
-            }
-        )
-    return {"previews": previews}
+    return {"previews": previews, "mode": batch_mode}
 
 
 @app.post("/api/batch/quotes/generate")
@@ -346,14 +443,24 @@ async def generate_batch_quotes(
         raise HTTPException(status_code=400, detail="Choose a preset.")
 
     text_content = await _read_text_content(text_file, text_path)
-    images, quotes = _paired_quote_batch_inputs(image_dir, text_content)
+    images, entries, batch_mode = _paired_preset_batch_inputs(image_dir, text_content, preset_id)
     files: list[str] = []
     output_root = _validate_output_dir(output_dir)
-    for image_path, quote in zip(images, quotes):
+    for image_path, entry in zip(images, entries):
         try:
-            zones = build_batch_quote_zones(preset_id, quote)
+            if batch_mode == "structured":
+                zones = build_batch_structured_zones(preset_id)
+                png_data = processor.render_from_path(
+                    image_path,
+                    name="",
+                    meaning="",
+                    zones=zones,
+                    text_values=entry,
+                )
+            else:
+                zones = build_batch_quote_zones(preset_id, entry)
+                png_data = processor.render_from_path(image_path, name="", meaning="", zones=zones)
         except PresetConfigError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        png_data = processor.render_from_path(image_path, name="", meaning="", zones=zones)
         files.append(str(save_png(output_root, png_data)))
-    return {"saved_count": len(files), "files": files}
+    return {"saved_count": len(files), "files": files, "mode": batch_mode}

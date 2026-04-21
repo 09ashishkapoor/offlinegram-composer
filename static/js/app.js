@@ -130,7 +130,7 @@ function updatePathPills() {
 
 function updateBatchPathPills() {
   const imageDir = state.batch.imageDir || "No image folder selected";
-  const quotesFile = state.batch.quotesFile?.name || state.batch.quotesPath || "No quotes file selected";
+  const quotesFile = state.batch.quotesFile?.name || state.batch.quotesPath || "No text file selected";
   const outputDir = state.batch.outputDir || "No output folder selected";
 
   elements.batchImageDir.textContent = imageDir;
@@ -158,7 +158,7 @@ function setPreview(base64, meta = "Preview ready.") {
   elements.previewMeta.textContent = meta;
 }
 
-function resetBatchPreview(copy = "Choose a quote file and image folder to build sample previews.") {
+function resetBatchPreview(copy = "Choose a text file and image folder to build sample previews.") {
   state.batch.previews = [];
   elements.batchMeta.textContent = copy;
   elements.batchPreviewGrid.innerHTML = `<div class="muted">${escapeHtml(copy)}</div>`;
@@ -176,7 +176,13 @@ function renderBatchPreviewCards() {
         <article class="batch-preview-card">
           <img src="data:image/png;base64,${preview.image_b64}" alt="${escapeHtml(preview.filename)} preview">
           <p><strong>${escapeHtml(preview.filename)}</strong></p>
-          <p class="batch-preview-quote">${escapeHtml(preview.quote)}</p>
+          ${preview.quote
+            ? `<p class="batch-preview-quote">${escapeHtml(preview.quote)}</p>`
+            : `
+              <p class="batch-preview-quote"><strong>Number:</strong> ${escapeHtml(preview.number || preview.title || "")}</p>
+              <p class="batch-preview-quote"><strong>Name:</strong> ${escapeHtml(preview.name || preview.subtitle || "")}</p>
+              <p class="batch-preview-quote"><strong>Caption:</strong> ${escapeHtml(preview.caption || "")}</p>
+            `}
         </article>
       `,
     )
@@ -198,8 +204,8 @@ function modeConfig(mode) {
   }
   if (mode === "batch-quotes") {
     return {
-      title: "Choose Batch Quote File",
-      helper: "Navigate to the quotes file and select it.",
+      title: "Choose Batch Text File",
+      helper: "Navigate to the batch text file and select it.",
       useCurrentFolder: false,
       currentLabel: "Use folder",
       selectedLabel: "Use file",
@@ -440,7 +446,7 @@ function ensureBatchInputs({ includeOutputDir = false } = {}) {
     throw new Error("Choose an image folder for batch mode.");
   }
   if (!state.batch.quotesFile && !state.batch.quotesPath) {
-    throw new Error("Upload or choose a quotes file first.");
+    throw new Error("Upload or choose a text file first.");
   }
   if (!state.activePresetId) {
     throw new Error("Choose a preset.");
@@ -469,6 +475,10 @@ function createBatchFormData(includeOutputDir = false) {
   }
 
   return data;
+}
+
+function describeBatchMode(mode) {
+  return mode === "structured" ? "structured fields" : "quote lines";
 }
 
 async function requestBatchPreview() {
@@ -535,7 +545,7 @@ async function previewBatch() {
     state.batch.previews = payload.previews || [];
     renderBatchPreviewCards();
     const previewCount = state.batch.previews.length;
-    elements.batchMeta.textContent = `Showing ${previewCount} sample preview${previewCount === 1 ? "" : "s"}.`;
+    elements.batchMeta.textContent = `Showing ${previewCount} sample preview${previewCount === 1 ? "" : "s"} using ${describeBatchMode(payload.mode)}.`;
   } finally {
     setBatchBusy(false);
   }
@@ -550,7 +560,7 @@ async function exportBatch() {
     const payload = await requestBatchGenerate();
     const savedCount = Number(payload.saved_count) || 0;
     showToast(`Saved ${savedCount} batch image${savedCount === 1 ? "" : "s"}.`);
-    elements.batchMeta.textContent = `Saved ${savedCount} file${savedCount === 1 ? "" : "s"} to ${state.batch.outputDir}`;
+    elements.batchMeta.textContent = `Saved ${savedCount} file${savedCount === 1 ? "" : "s"} to ${state.batch.outputDir} using ${describeBatchMode(payload.mode)}.`;
   } finally {
     setBatchBusy(false);
   }
@@ -829,5 +839,5 @@ updatePathPills();
 updateBatchPathPills();
 renderBusyState();
 resetPreview("Preview appears here.");
-resetBatchPreview("Choose a quote file and image folder to build sample previews.");
+resetBatchPreview("Choose a text file and image folder to build sample previews.");
 loadPresets().catch((error) => showToast(error.message, true));

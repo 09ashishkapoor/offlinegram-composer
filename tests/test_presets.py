@@ -3,7 +3,14 @@ from pathlib import Path
 
 import pytest
 
-from presets import PresetConfigError, build_batch_quote_zones, build_preset_zones, list_presets
+from presets import (
+    PresetConfigError,
+    build_batch_quote_zones,
+    build_batch_structured_zones,
+    build_preset_zones,
+    list_presets,
+    resolve_batch_preset_mode,
+)
 
 
 def write_config(path: Path) -> Path:
@@ -80,11 +87,59 @@ def test_build_preset_zones_rejects_missing_preset(tmp_path: Path):
         build_preset_zones("missing", "Text", config_path=config_path)
 
 
-def test_list_presets_returns_two_launch_presets(tmp_path: Path):
+def test_list_presets_returns_three_launch_presets(tmp_path: Path):
     config_path = tmp_path / "presets.json"
     config_path.write_text(Path("presets.json").read_text(encoding="utf-8"), encoding="utf-8")
     presets = list_presets(config_path)
-    assert [preset["id"] for preset in presets] == ["preset_1", "preset_2"]
+    assert [preset["id"] for preset in presets] == ["preset_1", "preset_2", "preset_3"]
+
+
+def test_resolve_batch_preset_mode_detects_quote_and_structured_modes(tmp_path: Path):
+    config_path = tmp_path / "presets.json"
+    config_path.write_text(Path("presets.json").read_text(encoding="utf-8"), encoding="utf-8")
+    assert resolve_batch_preset_mode("preset_1", config_path=config_path) == "quote"
+    assert resolve_batch_preset_mode("preset_3", config_path=config_path) == "structured"
+
+
+def test_resolve_batch_preset_mode_rejects_invalid_batch_layout(tmp_path: Path):
+    config_path = tmp_path / "presets.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "presets": [
+                    {
+                        "id": "bad",
+                        "label": "Bad",
+                        "description": "Two custom zones",
+                        "zones": [
+                            {"id": "a", "type": "text", "text_source": "custom", "custom_text": ""},
+                            {"id": "b", "type": "text", "text_source": "custom", "custom_text": ""},
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(PresetConfigError, match="Batch mode requires either exactly one custom text zone or at least one text zone using number, name, caption, title, or subtitle"):
+        resolve_batch_preset_mode("bad", config_path=config_path)
+
+
+def test_build_batch_structured_zones_returns_structured_preset_zones(tmp_path: Path):
+    config_path = tmp_path / "presets.json"
+    config_path.write_text(Path("presets.json").read_text(encoding="utf-8"), encoding="utf-8")
+    zones = build_batch_structured_zones("preset_3", config_path=config_path)
+    text_sources = [zone["text_source"] for zone in zones if zone.get("type") == "text"]
+    assert text_sources.count("number") == 1
+    assert text_sources.count("name") == 1
+    assert text_sources.count("caption") == 1
+
+
+def test_build_batch_structured_zones_rejects_non_structured_preset(tmp_path: Path):
+    config_path = tmp_path / "presets.json"
+    config_path.write_text(Path("presets.json").read_text(encoding="utf-8"), encoding="utf-8")
+    with pytest.raises(PresetConfigError, match="Structured batch mode requires a preset with at least one text zone using number, name, caption, title, or subtitle"):
+        build_batch_structured_zones("preset_1", config_path=config_path)
 
 
 def test_build_batch_quote_zones_sets_single_custom_zone(tmp_path: Path):

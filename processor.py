@@ -42,13 +42,13 @@ DEFAULT_ZONES: list[dict[str, Any]] = [
         "text_source": "name",
         "custom_text": "",
         "font_name": "BebasNeue-Regular",
-        "font_size": 52,
+        "font_size": 58,
         "text_color": "#FFFFFF",
         "opacity": 1.0,
         "x_percent": 50,
-        "y_percent": 67,
+        "y_percent": 70,
         "alignment": "center",
-        "max_width_percent": 92,
+        "max_width_percent": 86,
         "uppercase": True,
         "bg_shape": "none",
         "bg_color": "#000000",
@@ -60,8 +60,8 @@ DEFAULT_ZONES: list[dict[str, Any]] = [
         "shadow_blur": 8,
         "shadow_color": "#000000",
         "shadow_opacity": 0.9,
-        "outline_enabled": False,
-        "outline_thickness": 0,
+        "outline_enabled": True,
+        "outline_thickness": 8,
         "outline_color": "#000000",
     },
     {
@@ -70,13 +70,13 @@ DEFAULT_ZONES: list[dict[str, Any]] = [
         "text_source": "meaning",
         "custom_text": "",
         "font_name": "BebasNeue-Regular",
-        "font_size": 35,
+        "font_size": 39,
         "text_color": "#FFFFFF",
         "opacity": 1.0,
         "x_percent": 50,
-        "y_percent": 80,
+        "y_percent": 82,
         "alignment": "center",
-        "max_width_percent": 92,
+        "max_width_percent": 84,
         "uppercase": True,
         "bg_shape": "none",
         "bg_color": "#000000",
@@ -88,8 +88,8 @@ DEFAULT_ZONES: list[dict[str, Any]] = [
         "shadow_blur": 8,
         "shadow_color": "#000000",
         "shadow_opacity": 0.9,
-        "outline_enabled": False,
-        "outline_thickness": 0,
+        "outline_enabled": True,
+        "outline_thickness": 6,
         "outline_color": "#000000",
     },
 ]
@@ -143,6 +143,48 @@ def parse_quote_lines(text: str) -> list[str]:
     if not quotes:
         raise ProcessorError("The text file does not contain any usable quotes.")
     return quotes
+
+
+def parse_structured_text_lines(text: str) -> list[dict[str, str]]:
+    entries: list[dict[str, str]] = []
+    for line_number, raw_line in enumerate(text.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        number, number_separator, remainder = line.partition(".")
+        if not number_separator:
+            raise ProcessorError(
+                f"Line {line_number} must contain a '.' separating the number and name fields."
+            )
+
+        name, caption_separator, caption = remainder.partition(":")
+        if not caption_separator:
+            raise ProcessorError(
+                f"Line {line_number} must contain a ':' separating the name and caption fields."
+            )
+
+        number = number.strip()
+        name = name.strip()
+        caption = caption.strip()
+        if not number or not name or not caption:
+            raise ProcessorError(
+                f"Line {line_number} must include number, name, and caption text."
+            )
+
+        entries.append(
+            {
+                "number": number,
+                "name": name,
+                "title": number,
+                "subtitle": name,
+                "caption": caption,
+            }
+        )
+
+    if not entries:
+        raise ProcessorError("The text file does not contain any usable structured entries.")
+    return entries
 
 
 def list_font_choices(fonts_dir: Path = FONTS_DIR) -> list[dict[str, str]]:
@@ -339,9 +381,10 @@ class SkiaProcessor:
         name: str,
         meaning: str,
         zones: list[dict[str, Any]] | None = None,
+        text_values: dict[str, str] | None = None,
     ) -> bytes:
         image = Image.open(image_path)
-        return self.render_image(image, name=name, meaning=meaning, zones=zones)
+        return self.render_image(image, name=name, meaning=meaning, zones=zones, text_values=text_values)
 
     def render_image(
         self,
@@ -349,6 +392,7 @@ class SkiaProcessor:
         name: str,
         meaning: str,
         zones: list[dict[str, Any]] | None = None,
+        text_values: dict[str, str] | None = None,
     ) -> bytes:
         active_zones = normalize_zones(zones)
         base_image = image.convert("RGBA")
@@ -360,9 +404,11 @@ class SkiaProcessor:
         bgra_array = np.ascontiguousarray(rgba_array[:, :, [2, 1, 0, 3]])  # RGBA -> BGRA (Skia native order)
         canvas.drawImage(skia.Image.fromarray(bgra_array), 0, 0)
 
-        text_values = {"name": name, "meaning": meaning}
+        resolved_text_values = {"name": name, "meaning": meaning}
+        if text_values:
+            resolved_text_values.update({str(key): str(value) for key, value in text_values.items()})
         for zone in active_zones:
-            self._draw_zone(canvas, width, height, zone, text_values)
+            self._draw_zone(canvas, width, height, zone, resolved_text_values)
 
         snapshot = surface.makeImageSnapshot()
         data = snapshot.encodeToData()

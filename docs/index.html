@@ -179,6 +179,25 @@
     .roadmap-item h3 { font-size: 0.95rem; margin-bottom: 4px; }
     .roadmap-item p  { font-size: 0.85rem; color: var(--muted); }
 
+    .note {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      color: var(--muted);
+    }
+
+    pre.sample {
+      background: rgba(0,0,0,0.28);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      overflow-x: auto;
+      font-size: 0.88rem;
+      line-height: 1.55;
+      color: var(--text);
+    }
+
     /* ── footer ── */
     footer {
       border-top: 1px solid var(--border);
@@ -238,7 +257,7 @@
         <div class="feature-card">
           <div class="icon">🗂️</div>
           <h3>Batch mode</h3>
-          <p>Pair one image folder with a one-quote-per-line text file and export the whole run in one pass.</p>
+          <p>Pair one image folder with either a quote list or a structured preset-driven text file and export the whole run in one pass.</p>
         </div>
         <div class="feature-card">
           <div class="icon">🔒</div>
@@ -281,7 +300,7 @@
     <!-- Batch mode -->
     <section>
       <h2>Batch mode</h2>
-      <p style="color:var(--muted);margin-bottom:20px;">Use <strong>Quotes to images</strong> when you want to process a whole folder with one preset and a plain text quote list.</p>
+      <p style="color:var(--muted);margin-bottom:20px;">Use <strong>Quotes to images</strong> when you want to process a whole folder with one preset and either a simple quote list or a structured preset-driven text file.</p>
       <div class="steps">
         <div class="step">
           <h3>Choose an image folder</h3>
@@ -289,7 +308,11 @@
         </div>
         <div class="step">
           <h3>Add a quotes file</h3>
-          <p>Upload or choose a plain text file with one quote per non-empty line.</p>
+          <p>Upload or choose a UTF-8 text file. The exact format depends on the preset selected from the root preset config.</p>
+        </div>
+        <div class="step">
+          <h3>Pick the preset from the root config</h3>
+          <p>Batch behavior is driven by <code>presets.json</code> in the project root. Use those preset definitions as-is, or edit that file to change layout and field mapping.</p>
         </div>
         <div class="step">
           <h3>Preview sample pairings</h3>
@@ -300,12 +323,28 @@
           <p>Choose an output folder and save every rendered PNG in one operation.</p>
         </div>
       </div>
-      <p style="color:var(--muted);margin-top:14px;">Batch mode requires the image count and quote count to match exactly, and the selected preset must expose exactly one usable custom text zone.</p>
+      <p style="color:var(--muted);margin-top:14px;">Single-zone presets expect one quote per non-empty line. Structured presets activate when the selected root preset exposes text zones such as <code>number</code>, <code>name</code>, <code>caption</code>, <code>title</code>, or <code>subtitle</code>.</p>
+    </section>
+
+    <section>
+      <h2>Structured batch files</h2>
+      <div class="note" style="margin-bottom:20px;">
+        <strong style="color:var(--text);">Important:</strong> preset configs live in <code>presets.json</code> in the project root, next to <code>app.py</code>. That root file is the source of truth for preset layout and batch field mapping.
+      </div>
+      <p style="color:var(--muted);margin-bottom:20px;">The built-in <strong>preset_3</strong> is the shipped example for structured batch rendering. Each non-empty line fills the <code>number</code>, <code>name</code>, and <code>caption</code> zones using the format <code>1. Name: Caption</code>.</p>
+      <pre class="sample">1. Shhmashhana kalika: The dark-bodied Goddess of the cremation ground, the power of death and dissolution.
+2. Kali: The Black Goddess, ruler of Time.
+3. Bhadra kali: The all-auspicious Dark Mother.</pre>
+      <p style="color:var(--muted);margin-top:14px;">The repository includes <code>sample_file_Preset3.txt</code> in the root folder as a longer example. Structured batch export also requires the image count and structured-entry count to match exactly.</p>
     </section>
 
     <!-- Batch screenshot -->
     <div class="screenshot-wrap">
       <img src="screenshots/ui-batch.png" alt="OfflineGram Composer batch mode for quotes to images">
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="screenshots/ui-batch-preset3.png" alt="OfflineGram Composer batch mode using preset 3 structured text">
     </div>
 
     <!-- Stack -->
@@ -323,15 +362,15 @@
       </table>
     </section>
 
-    <!-- Roadmap -->
+    <!-- Structured batch status -->
     <section>
-      <h2>Roadmap</h2>
+      <h2>Structured batch presets</h2>
       <div class="roadmap-list">
         <div class="roadmap-item">
-          <span class="roadmap-badge">Planned</span>
+          <span class="roadmap-badge">Shipped</span>
           <div>
             <h3>Multi-zone batch text files</h3>
-            <p>Import a structured file where each entry maps to multiple text zones on one image, such as a title, subtitle, and caption. The app would composite and export the entire batch in one pass.</p>
+            <p>Structured batch files are now supported. Use <code>preset_3</code> or your own root-level preset definitions in <code>presets.json</code> to map one line of input into multiple zones such as number, name, caption, title, or subtitle.</p>
           </div>
         </div>
       </div>

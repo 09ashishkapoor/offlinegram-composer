@@ -88,8 +88,8 @@
       <div class="batch-layout">
         <section class="panel-card batch-header-card">
           <p class="eyebrow">Batch Mode</p>
-          <h2 id="batch-mode-title">Quotes to images</h2>
-          <p class="helper-text">One quote per line. Images and quotes must match exactly.</p>
+          <h2 id="batch-mode-title">Text file to images</h2>
+          <p class="helper-text">Use one quote per line for single-zone presets, or <code>1. Name: Caption</code> for number/name/caption presets.</p>
         </section>
 
         <section class="panel-card batch-control-card">
@@ -104,15 +104,15 @@
           </div>
 
           <div class="batch-input-group">
-            <p class="eyebrow">Quotes</p>
+            <p class="eyebrow">Text File</p>
             <label class="compact-drop" for="batch-quotes-upload">
               <input id="batch-quotes-upload" type="file" accept=".txt,.md,text/plain">
-              <span class="drop-title">Upload quotes file</span>
-              <span class="drop-hint">Plain text with one quote per line.</span>
+              <span class="drop-title">Upload text file</span>
+              <span class="drop-hint">One quote per line, or <code>1. Name: Caption</code> per line.</span>
             </label>
             <div class="inline-row">
-              <button class="ghost-button" id="batch-browse-quotes" type="button">Choose quote file</button>
-              <span class="path-pill" id="batch-quotes-file">No quotes file selected</span>
+              <button class="ghost-button" id="batch-browse-quotes" type="button">Choose text file</button>
+              <span class="path-pill" id="batch-quotes-file">No text file selected</span>
             </div>
           </div>
 
@@ -138,7 +138,7 @@
               <p class="eyebrow">Batch Preview</p>
               <h2>Review pairings</h2>
             </div>
-            <p id="batch-meta" class="helper-text">Choose a quote file and image folder to build a preview.</p>
+            <p id="batch-meta" class="helper-text">Choose a text file and image folder to build a preview.</p>
           </div>
           <div id="batch-preview-grid" class="batch-preview-grid"></div>
         </section>

@@ -7,6 +7,7 @@ from typing import Any
 
 BASE_DIR = Path(__file__).resolve().parent
 PRESETS_CONFIG_PATH = BASE_DIR / "presets.json"
+STRUCTURED_BATCH_TEXT_SOURCES = {"number", "name", "caption", "title", "subtitle"}
 
 
 class PresetConfigError(ValueError):
@@ -93,4 +94,43 @@ def build_batch_quote_zones(
         raise PresetConfigError("Batch mode requires a preset with exactly one custom text zone.")
 
     custom_text_zones[0]["custom_text"] = quote
+    return zones
+
+
+def resolve_batch_preset_mode(
+    preset_id: str,
+    config_path: Path = PRESETS_CONFIG_PATH,
+) -> str:
+    zones = _get_preset_zones(preset_id, config_path)
+    structured_text_zones = [
+        zone
+        for zone in zones
+        if zone.get("type") == "text" and zone.get("text_source") in STRUCTURED_BATCH_TEXT_SOURCES
+    ]
+    if structured_text_zones:
+        return "structured"
+
+    custom_text_zones = [
+        zone for zone in zones if zone.get("type") == "text" and zone.get("text_source") == "custom"
+    ]
+    if len(custom_text_zones) == 1:
+        return "quote"
+
+    raise PresetConfigError(
+        "Batch mode requires either exactly one custom text zone or at least one text zone using number, name, caption, title, or subtitle."
+    )
+
+
+def build_batch_structured_zones(
+    preset_id: str,
+    config_path: Path = PRESETS_CONFIG_PATH,
+) -> list[dict[str, Any]]:
+    zones = _get_preset_zones(preset_id, config_path)
+    if not any(
+        zone.get("type") == "text" and zone.get("text_source") in STRUCTURED_BATCH_TEXT_SOURCES
+        for zone in zones
+    ):
+        raise PresetConfigError(
+            "Structured batch mode requires a preset with at least one text zone using number, name, caption, title, or subtitle."
+        )
     return zones

@@ -61,6 +61,22 @@ def test_generate_single_uses_preset_id(tmp_path: Path):
     assert Path(response.json()["saved_to"]).exists()
 
 
+def test_preview_single_supports_structured_preset(tmp_path: Path):
+    image_path = tmp_path / "single-structured.png"
+    create_image(image_path, (25, 25, 25, 255))
+    with image_path.open("rb") as image_file:
+        response = client.post(
+            "/api/preview",
+            files={"image": ("single-structured.png", image_file, "image/png")},
+            data={
+                "preset_id": "preset_3",
+                "text": "1\nShhmashhana kalika\nThe dark-bodied Goddess of the cremation ground.",
+            },
+        )
+    assert response.status_code == 200
+    assert "image_b64" in response.json()
+
+
 def test_preview_single_accepts_overlay_override(tmp_path: Path):
     image_path = tmp_path / "single.png"
     create_image(image_path, (20, 20, 20, 255))
@@ -349,3 +365,114 @@ def test_batch_quotes_generate_count_mismatch(tmp_path: Path):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Process stopped because quotes or images ran out."
+
+
+def test_batch_structured_preview_success_with_preset_3(tmp_path: Path):
+    image_dir = tmp_path / "images"
+    image_dir.mkdir()
+    create_image(image_dir / "001.png", (10, 10, 10, 255))
+    create_image(image_dir / "002.png", (30, 30, 30, 255))
+
+    text_file = tmp_path / "entries.txt"
+    text_file.write_text(
+        "1. Name A: Caption about destiny\n2. Name B: Caption about courage\n",
+        encoding="utf-8",
+    )
+
+    with text_file.open("rb") as file_handle:
+        response = client.post(
+            "/api/batch/quotes/preview",
+            files={"text_file": ("entries.txt", file_handle, "text/plain")},
+            data={"image_dir": str(image_dir), "preset_id": "preset_3"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["mode"] == "structured"
+    assert len(payload["previews"]) == 2
+    assert payload["previews"][0]["number"] == "1"
+    assert payload["previews"][0]["name"] == "Name A"
+    assert payload["previews"][1]["caption"].startswith("Caption")
+
+
+def test_batch_structured_preview_count_mismatch_with_preset_3(tmp_path: Path):
+    image_dir = tmp_path / "images"
+    image_dir.mkdir()
+    create_image(image_dir / "001.png", (10, 10, 10, 255))
+    create_image(image_dir / "002.png", (30, 30, 30, 255))
+
+    text_file = tmp_path / "entries.txt"
+    text_file.write_text("1. Only name: Single caption\n", encoding="utf-8")
+
+    with text_file.open("rb") as file_handle:
+        response = client.post(
+            "/api/batch/quotes/preview",
+            files={"text_file": ("entries.txt", file_handle, "text/plain")},
+            data={"image_dir": str(image_dir), "preset_id": "preset_3"},
+        )
+
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"]
+        == "Batch image count and structured-entry count must match exactly. Found 2 images and 1 structured entries."
+    )
+
+
+def test_batch_structured_generate_success_with_preset_3(tmp_path: Path):
+    image_dir = tmp_path / "images"
+    output_dir = tmp_path / "generated"
+    image_dir.mkdir()
+    create_image(image_dir / "001.png", (10, 10, 10, 255))
+    create_image(image_dir / "002.png", (30, 30, 30, 255))
+
+    text_file = tmp_path / "entries.txt"
+    text_file.write_text(
+        "1. Skyline: Caption about peace\n2. Harbor: Caption about calm\n",
+        encoding="utf-8",
+    )
+
+    with text_file.open("rb") as file_handle:
+        response = client.post(
+            "/api/batch/quotes/generate",
+            files={"text_file": ("entries.txt", file_handle, "text/plain")},
+            data={
+                "image_dir": str(image_dir),
+                "preset_id": "preset_3",
+                "output_dir": str(output_dir),
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["mode"] == "structured"
+    assert payload["saved_count"] == 2
+    for file_path in payload["files"]:
+        assert Path(file_path).exists()
+
+
+def test_batch_structured_generate_count_mismatch_with_preset_3(tmp_path: Path):
+    image_dir = tmp_path / "images"
+    output_dir = tmp_path / "generated"
+    image_dir.mkdir()
+    create_image(image_dir / "001.png", (10, 10, 10, 255))
+    create_image(image_dir / "002.png", (30, 30, 30, 255))
+
+    text_file = tmp_path / "entries.txt"
+    text_file.write_text("1. Only one: Missing mate\n", encoding="utf-8")
+
+    with text_file.open("rb") as file_handle:
+        response = client.post(
+            "/api/batch/quotes/generate",
+            files={"text_file": ("entries.txt", file_handle, "text/plain")},
+            data={
+                "image_dir": str(image_dir),
+                "preset_id": "preset_3",
+                "output_dir": str(output_dir),
+            },
+        )
+
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"]
+        == "Batch image count and structured-entry count must match exactly. Found 2 images and 1 structured entries."
+    )

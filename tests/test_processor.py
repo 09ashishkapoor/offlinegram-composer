@@ -4,7 +4,7 @@ import pytest
 from PIL import Image
 
 from presets import build_preset_zones
-from processor import DEFAULT_ZONES, FONTS_DIR, ProcessorError, SkiaProcessor, parse_quote_lines
+from processor import DEFAULT_ZONES, FONTS_DIR, ProcessorError, SkiaProcessor, parse_quote_lines, parse_structured_text_lines
 
 
 def make_sample_image(tmp_path: Path) -> Path:
@@ -121,3 +121,57 @@ def test_parse_quote_lines_ignores_blank_lines():
 def test_parse_quote_lines_rejects_empty_input():
     with pytest.raises(ProcessorError, match="does not contain any usable quotes"):
         parse_quote_lines("\n   \n")
+
+
+def test_parse_structured_text_lines_parses_number_name_caption():
+    entries = parse_structured_text_lines(
+        "1. Name One: Caption first\n\n2. Name Two: Caption second"
+    )
+    assert entries == [
+        {
+            "number": "1",
+            "name": "Name One",
+            "title": "1",
+            "subtitle": "Name One",
+            "caption": "Caption first",
+        },
+        {
+            "number": "2",
+            "name": "Name Two",
+            "title": "2",
+            "subtitle": "Name Two",
+            "caption": "Caption second",
+        },
+    ]
+
+
+def test_parse_structured_text_lines_rejects_missing_dot():
+    with pytest.raises(ProcessorError, match="must contain a '.'"):
+        parse_structured_text_lines("Bad format line: missing separator")
+
+
+def test_parse_structured_text_lines_rejects_missing_colon():
+    with pytest.raises(ProcessorError, match="must contain a ':'"):
+        parse_structured_text_lines("1. Name missing caption")
+
+
+def test_parse_structured_text_lines_rejects_empty_input():
+    with pytest.raises(ProcessorError, match="does not contain any usable structured entries"):
+        parse_structured_text_lines("\n   \n")
+
+
+def test_render_structured_text_values_for_multiple_sources(tmp_path: Path):
+    processor = SkiaProcessor(FONTS_DIR)
+    zones = build_preset_zones("preset_3", "")
+    output = processor.render_from_path(
+        make_sample_image(tmp_path),
+        name="",
+        meaning="",
+        zones=zones,
+        text_values={
+            "number": "1",
+            "name": "Morning Star",
+            "caption": "Shine bright",
+        },
+    )
+    assert output.startswith(b"\x89PNG")
