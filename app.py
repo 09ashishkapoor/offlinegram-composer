@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import json
+from copy import deepcopy
 from contextlib import asynccontextmanager
 from io import BytesIO
 from pathlib import Path
@@ -11,7 +12,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
-from presets import PresetConfigError, build_batch_quote_zones, build_preset_zones, load_preset_catalog
+from presets import PresetConfigError, build_preset_zones, load_preset_catalog
 from processor import (
     BASE_DIR,
     DEFAULT_ZONES,
@@ -146,6 +147,31 @@ def _paired_quote_batch_inputs(image_dir: str, text_content: str) -> tuple[list[
     return images, quotes
 
 
+def _resolve_batch_quote_template(preset_id: str) -> list[dict[str, Any]]:
+    for preset in load_preset_catalog():
+        if preset["id"] != preset_id:
+            continue
+
+        zones = [dict(zone) for zone in preset["zones"]]
+        custom_text_zones = [
+            zone for zone in zones if zone.get("type") == "text" and zone.get("text_source") == "custom"
+        ]
+        if len(custom_text_zones) != 1:
+            raise PresetConfigError("Batch mode requires a preset with exactly one custom text zone.")
+        return zones
+
+    raise PresetConfigError(f"Unknown preset '{preset_id}'.")
+
+
+def _apply_quote_batch_template(zones: list[dict[str, Any]], quote: str) -> list[dict[str, Any]]:
+    quote_zones = deepcopy(zones)
+    custom_text_zones = [
+        zone for zone in quote_zones if zone.get("type") == "text" and zone.get("text_source") == "custom"
+    ]
+    custom_text_zones[0]["custom_text"] = quote
+    return quote_zones
+
+
 @app.get("/")
 async def index() -> FileResponse:
     return FileResponse(TEMPLATES_DIR / "index.html")
@@ -270,12 +296,10 @@ async def preview_batch_quotes(
 
     text_content = (await text_file.read()).decode("utf-8")
     images, quotes = _paired_quote_batch_inputs(image_dir, text_content)
+    template_zones = _resolve_batch_quote_template(preset_id)
     previews: list[dict[str, str]] = []
     for image_path, quote in list(zip(images, quotes))[: max(1, min(sample_count, 5))]:
-        try:
-            zones = build_batch_quote_zones(preset_id, quote)
-        except PresetConfigError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        zones = _apply_quote_batch_template(template_zones, quote)
         png_data = processor.render_from_path(image_path, name="", meaning="", zones=zones)
         previews.append(
             {
@@ -301,13 +325,11 @@ async def generate_batch_quotes(
 
     text_content = (await text_file.read()).decode("utf-8")
     images, quotes = _paired_quote_batch_inputs(image_dir, text_content)
+    template_zones = _resolve_batch_quote_template(preset_id)
     files: list[str] = []
     output_root = _validate_output_dir(output_dir)
     for image_path, quote in zip(images, quotes):
-        try:
-            zones = build_batch_quote_zones(preset_id, quote)
-        except PresetConfigError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        zones = _apply_quote_batch_template(template_zones, quote)
         png_data = processor.render_from_path(image_path, name="", meaning="", zones=zones)
         files.append(str(save_png(output_root, png_data)))
     return {"saved_count": len(files), "files": files}
