@@ -26,7 +26,7 @@ def test_presets_endpoint():
     assert response.status_code == 200
     payload = response.json()
     assert payload["presets"]
-    assert payload["helper_text"] == "Presets are defined in the local app config file."
+    assert payload["helper_text"] == "Edit presets in presets.json (in this project root, next to app.py)."
 
 
 def test_preview_single_uses_preset_id(tmp_path: Path):
