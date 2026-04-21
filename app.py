@@ -1,7 +1,6 @@
 ﻿from __future__ import annotations
 
 import json
-from copy import deepcopy
 from contextlib import asynccontextmanager
 from io import BytesIO
 from pathlib import Path
@@ -147,19 +146,6 @@ def _paired_quote_batch_inputs(image_dir: str, text_content: str) -> tuple[list[
     return images, quotes
 
 
-def _resolve_batch_quote_template(preset_id: str) -> list[dict[str, Any]]:
-    return build_batch_quote_zones(preset_id, "")
-
-
-def _apply_quote_batch_template(zones: list[dict[str, Any]], quote: str) -> list[dict[str, Any]]:
-    quote_zones = deepcopy(zones)
-    custom_text_zones = [
-        zone for zone in quote_zones if zone.get("type") == "text" and zone.get("text_source") == "custom"
-    ]
-    custom_text_zones[0]["custom_text"] = quote
-    return quote_zones
-
-
 @app.get("/")
 async def index() -> FileResponse:
     return FileResponse(TEMPLATES_DIR / "index.html")
@@ -284,10 +270,12 @@ async def preview_batch_quotes(
 
     text_content = (await text_file.read()).decode("utf-8")
     images, quotes = _paired_quote_batch_inputs(image_dir, text_content)
-    template_zones = _resolve_batch_quote_template(preset_id)
     previews: list[dict[str, str]] = []
     for image_path, quote in list(zip(images, quotes))[: max(1, min(sample_count, 5))]:
-        zones = _apply_quote_batch_template(template_zones, quote)
+        try:
+            zones = build_batch_quote_zones(preset_id, quote)
+        except PresetConfigError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         png_data = processor.render_from_path(image_path, name="", meaning="", zones=zones)
         previews.append(
             {
@@ -313,11 +301,13 @@ async def generate_batch_quotes(
 
     text_content = (await text_file.read()).decode("utf-8")
     images, quotes = _paired_quote_batch_inputs(image_dir, text_content)
-    template_zones = _resolve_batch_quote_template(preset_id)
     files: list[str] = []
     output_root = _validate_output_dir(output_dir)
     for image_path, quote in zip(images, quotes):
-        zones = _apply_quote_batch_template(template_zones, quote)
+        try:
+            zones = build_batch_quote_zones(preset_id, quote)
+        except PresetConfigError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         png_data = processor.render_from_path(image_path, name="", meaning="", zones=zones)
         files.append(str(save_png(output_root, png_data)))
     return {"saved_count": len(files), "files": files}

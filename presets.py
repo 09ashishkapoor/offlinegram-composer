@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import json
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -42,12 +43,27 @@ def _validate_preset(preset: dict[str, Any]) -> dict[str, Any]:
     return preset
 
 
-def load_preset_catalog(config_path: Path = PRESETS_CONFIG_PATH) -> list[dict[str, Any]]:
-    payload = _load_raw_config(config_path)
+def _config_cache_key(config_path: Path) -> tuple[str, int, int]:
+    resolved_path = config_path.resolve()
+    stat_result = resolved_path.stat()
+    return (str(resolved_path), stat_result.st_mtime_ns, stat_result.st_size)
+
+
+@lru_cache(maxsize=None)
+def _load_preset_catalog_cached(config_path_str: str, mtime_ns: int, size: int) -> tuple[dict[str, Any], ...]:
+    payload = _load_raw_config(Path(config_path_str))
     presets = payload.get("presets")
     if not isinstance(presets, list) or not presets:
         raise PresetConfigError("Preset config must define a non-empty 'presets' list.")
-    return [_validate_preset(dict(preset)) for preset in presets]
+    return tuple(_validate_preset(dict(preset)) for preset in presets)
+
+
+def load_preset_catalog(config_path: Path = PRESETS_CONFIG_PATH) -> list[dict[str, Any]]:
+    try:
+        cache_key = _config_cache_key(config_path)
+    except FileNotFoundError as exc:
+        raise PresetConfigError("Preset config file was not found.") from exc
+    return [dict(preset) for preset in _load_preset_catalog_cached(*cache_key)]
 
 
 def list_presets(config_path: Path = PRESETS_CONFIG_PATH) -> list[dict[str, str]]:
