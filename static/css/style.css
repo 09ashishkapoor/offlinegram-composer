@@ -182,10 +182,6 @@ select {
   overflow: auto;
 }
 
-.batch-section {
-  margin-top: -2px;
-}
-
 .batch-layout {
   display: grid;
   gap: 18px;
@@ -200,6 +196,7 @@ select {
 }
 
 .batch-control-card,
+.batch-preview-panel,
 .batch-preview-card {
   display: grid;
   gap: 16px;
@@ -256,6 +253,11 @@ select {
   position: relative;
   z-index: 1;
   max-width: 42rem;
+}
+
+.compact-drop.dragover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(200, 148, 98, 0.15);
 }
 
 .drop-zone.dragover {
@@ -532,16 +534,16 @@ details summary {
 @media (min-width: 981px) {
   html,
   body {
-    min-height: 100%;
-    overflow-x: hidden;
-    overflow-y: auto;
+    height: 100%;
+    overflow: hidden;
   }
 
   .app-shell {
-    min-height: 100vh;
-    height: auto;
+    height: 100vh;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     padding: 12px;
     gap: 12px;
+    overflow-y: auto;
   }
 
   .topbar {
@@ -575,7 +577,7 @@ details summary {
     grid-column: 1 / -1;
   }
 
-  .batch-preview-card {
+  .batch-preview-panel {
     min-height: 320px;
   }
 }
