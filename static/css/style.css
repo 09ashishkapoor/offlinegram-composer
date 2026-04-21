@@ -200,6 +200,7 @@ select {
 .batch-preview-card {
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .batch-input-group {
@@ -362,7 +363,8 @@ button:hover {
 .batch-preview-grid {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  min-width: 0;
 }
 
 .batch-preview-card {
@@ -370,6 +372,17 @@ button:hover {
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.025);
   padding: 14px;
+  min-width: 0;
+}
+
+.batch-preview-card img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  object-fit: cover;
 }
 
 .batch-preview-quote {

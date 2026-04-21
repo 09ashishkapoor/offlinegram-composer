@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OfflineGram Composer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230e1218'/%3E%3Crect x='9' y='43' width='46' height='11' rx='4' fill='%23ff8d5c'/%3E%3Ctext x='32' y='31' text-anchor='middle' font-size='20' fill='white' font-family='Arial'%3EP%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/css/style.css?v=20260419a">
+  <link rel="stylesheet" href="/static/css/style.css?v=20260420c">
 </head>
 <body>
   <div class="app-shell">
@@ -111,6 +111,7 @@
               <span class="drop-hint">Plain text with one quote per line.</span>
             </label>
             <div class="inline-row">
+              <button class="ghost-button" id="batch-browse-quotes" type="button">Choose quote file</button>
               <span class="path-pill" id="batch-quotes-file">No quotes file selected</span>
             </div>
           </div>
@@ -159,7 +160,7 @@
           <div id="browser-path" class="browser-path">Select a drive to begin.</div>
           <label class="browser-search">
             <span>Filter current folder</span>
-            <input id="browser-search" type="text" placeholder="Type to filter folders or images">
+            <input id="browser-search" type="text" placeholder="Type to filter folders or files">
           </label>
         </div>
 
@@ -182,10 +183,10 @@
 
           <section class="browser-pane">
             <div class="browser-pane-header">
-              <h3>Images</h3>
-              <p class="muted">Choose one image and confirm it when image selection is active.</p>
+              <h3 id="browser-files-title">Images</h3>
+              <p id="browser-files-helper" class="muted">Choose one image and confirm it when image selection is active.</p>
             </div>
-            <div id="browser-images" class="browser-list"></div>
+            <div id="browser-files" class="browser-list"></div>
           </section>
         </div>
 
@@ -197,7 +198,7 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="/static/js/app.js?v=20260419a" defer></script>
+    <script src="/static/js/app.js?v=20260420b" defer></script>
   </div>
 </body>
 </html>

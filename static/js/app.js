@@ -21,6 +21,7 @@
   batch: {
     imageDir: "",
     quotesFile: null,
+    quotesPath: "",
     outputDir: "",
     previews: [],
     busy: false,
@@ -44,6 +45,7 @@ const elements = {
   batchBrowseImagesButton: document.getElementById("batch-browse-images"),
   batchImageDir: document.getElementById("batch-image-dir"),
   batchQuotesUpload: document.getElementById("batch-quotes-upload"),
+  batchBrowseQuotesButton: document.getElementById("batch-browse-quotes"),
   batchQuotesFile: document.getElementById("batch-quotes-file"),
   batchBrowseOutputButton: document.getElementById("batch-browse-output"),
   batchOutputDir: document.getElementById("batch-output-dir"),
@@ -59,7 +61,9 @@ const elements = {
   browserModal: document.getElementById("browser-modal"),
   browserRoots: document.getElementById("browser-roots"),
   browserFolders: document.getElementById("browser-folders"),
-  browserImages: document.getElementById("browser-images"),
+  browserFiles: document.getElementById("browser-files"),
+  browserFilesTitle: document.getElementById("browser-files-title"),
+  browserFilesHelper: document.getElementById("browser-files-helper"),
   browserPath: document.getElementById("browser-path"),
   browserHelper: document.getElementById("browser-helper"),
   browserSearch: document.getElementById("browser-search"),
@@ -72,6 +76,8 @@ const elements = {
 };
 
 const BATCH_PREVIEW_SAMPLE_COUNT = 3;
+let nativePickerAvailable = null;
+let nativePickerFallbackNotified = false;
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -124,7 +130,7 @@ function updatePathPills() {
 
 function updateBatchPathPills() {
   const imageDir = state.batch.imageDir || "No image folder selected";
-  const quotesFile = state.batch.quotesFile?.name || "No quotes file selected";
+  const quotesFile = state.batch.quotesFile?.name || state.batch.quotesPath || "No quotes file selected";
   const outputDir = state.batch.outputDir || "No output folder selected";
 
   elements.batchImageDir.textContent = imageDir;
@@ -185,6 +191,21 @@ function modeConfig(mode) {
       useCurrentFolder: false,
       currentLabel: "Use folder",
       selectedLabel: "Use image",
+      filesTitle: "Images",
+      filesHelper: "Choose one image and confirm it when image selection is active.",
+      filesKey: "images",
+    };
+  }
+  if (mode === "batch-quotes") {
+    return {
+      title: "Choose Batch Quote File",
+      helper: "Navigate to the quotes file and select it.",
+      useCurrentFolder: false,
+      currentLabel: "Use folder",
+      selectedLabel: "Use file",
+      filesTitle: "Text Files",
+      filesHelper: "Choose one UTF-8 .txt or .md file.",
+      filesKey: "text_files",
     };
   }
   if (mode === "batch-images") {
@@ -194,6 +215,9 @@ function modeConfig(mode) {
       useCurrentFolder: true,
       currentLabel: "Use folder",
       selectedLabel: "Use image",
+      filesTitle: "Images",
+      filesHelper: "Image files in the current folder.",
+      filesKey: "images",
     };
   }
   if (mode === "batch-output") {
@@ -203,6 +227,9 @@ function modeConfig(mode) {
       useCurrentFolder: true,
       currentLabel: "Use folder",
       selectedLabel: "Use image",
+      filesTitle: "Images",
+      filesHelper: "Image files in the current folder.",
+      filesKey: "images",
     };
   }
   return {
@@ -211,6 +238,9 @@ function modeConfig(mode) {
     useCurrentFolder: true,
     currentLabel: "Use folder",
     selectedLabel: "Use image",
+    filesTitle: "Images",
+    filesHelper: "Image files in the current folder.",
+    filesKey: "images",
   };
 }
 
@@ -218,9 +248,103 @@ async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
   const payload = await response.json();
   if (!response.ok) {
-    throw new Error(payload.detail || "Request failed.");
+    const error = new Error(payload.detail || "Request failed.");
+    error.status = response.status;
+    throw error;
   }
   return payload;
+}
+
+function getInitialPathForMode(mode) {
+  if (mode === "image") {
+    return state.spc.imagePath || null;
+  }
+  if (mode === "output") {
+    return state.spc.outputDir || null;
+  }
+  if (mode === "batch-images") {
+    return state.batch.imageDir || null;
+  }
+  if (mode === "batch-quotes") {
+    return state.batch.quotesPath || null;
+  }
+  if (mode === "batch-output") {
+    return state.batch.outputDir || null;
+  }
+  return null;
+}
+
+function applySelectedPath(mode, path) {
+  if (!path) return;
+
+  if (mode === "image") {
+    state.spc.file = null;
+    state.spc.imagePath = path;
+    elements.imageUpload.value = "";
+    state.spc.overlayDraft = null;
+    updatePathPills();
+    resetPreview("Preview appears here.");
+    return;
+  }
+
+  if (mode === "output") {
+    state.spc.outputDir = path;
+    updatePathPills();
+    return;
+  }
+
+  if (mode === "batch-images") {
+    state.batch.imageDir = path;
+    updateBatchPathPills();
+    resetBatchPreview();
+    return;
+  }
+
+  if (mode === "batch-quotes") {
+    state.batch.quotesPath = path;
+    state.batch.quotesFile = null;
+    elements.batchQuotesUpload.value = "";
+    updateBatchPathPills();
+    resetBatchPreview();
+    return;
+  }
+
+  if (mode === "batch-output") {
+    state.batch.outputDir = path;
+    updateBatchPathPills();
+  }
+}
+
+async function requestPathSelection(mode) {
+  if (nativePickerAvailable !== false) {
+    try {
+      const payload = await fetchJson("/api/pick", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode,
+          initial_path: getInitialPathForMode(mode),
+        }),
+      });
+      nativePickerAvailable = true;
+      if (!payload.cancelled && payload.path) {
+        applySelectedPath(mode, payload.path);
+      }
+      return;
+    } catch (error) {
+      if (error.status === 501) {
+        nativePickerAvailable = false;
+        if (!nativePickerFallbackNotified) {
+          showToast("Native picker unavailable in this runtime. Using in-app browser.");
+          nativePickerFallbackNotified = true;
+        }
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  openBrowser(mode);
 }
 
 function renderPresetOptions() {
@@ -315,8 +439,8 @@ function ensureBatchInputs({ includeOutputDir = false } = {}) {
   if (!state.batch.imageDir) {
     throw new Error("Choose an image folder for batch mode.");
   }
-  if (!state.batch.quotesFile) {
-    throw new Error("Upload a quotes file first.");
+  if (!state.batch.quotesFile && !state.batch.quotesPath) {
+    throw new Error("Upload or choose a quotes file first.");
   }
   if (!state.activePresetId) {
     throw new Error("Choose a preset.");
@@ -330,7 +454,11 @@ function createBatchFormData(includeOutputDir = false) {
   ensureBatchInputs({ includeOutputDir });
 
   const data = new FormData();
-  data.append("text_file", state.batch.quotesFile);
+  if (state.batch.quotesFile) {
+    data.append("text_file", state.batch.quotesFile);
+  } else if (state.batch.quotesPath) {
+    data.append("text_path", state.batch.quotesPath);
+  }
   data.append("image_dir", state.batch.imageDir);
   data.append("preset_id", state.activePresetId || "");
 
@@ -434,15 +562,18 @@ function renderBrowserContents() {
 
   const cfg = modeConfig(state.browser.mode);
   const filter = state.browser.search.trim().toLowerCase();
+  const filePool = Array.isArray(data[cfg.filesKey]) ? data[cfg.filesKey] : [];
   const folders = filter
     ? data.folders.filter((folder) => folder.name.toLowerCase().includes(filter))
     : data.folders;
-  const images = filter
-    ? data.images.filter((image) => image.name.toLowerCase().includes(filter))
-    : data.images;
+  const files = filter
+    ? filePool.filter((file) => file.name.toLowerCase().includes(filter))
+    : filePool;
 
   elements.browserTitle.textContent = cfg.title;
   elements.browserHelper.textContent = cfg.helper;
+  elements.browserFilesTitle.textContent = cfg.filesTitle;
+  elements.browserFilesHelper.textContent = cfg.filesHelper;
   elements.browserPath.textContent = data.current || "Select a drive to begin.";
   elements.browserSelection.textContent = state.browser.selectedPath || "Nothing selected yet";
 
@@ -456,17 +587,17 @@ function renderBrowserContents() {
       .join("")
     : `<div class="muted">No folders match this filter.</div>`;
 
-  elements.browserImages.innerHTML = images.length
-    ? images
+  elements.browserFiles.innerHTML = files.length
+    ? files
       .map(
-        (image) => `
-        <button class="browser-item ${image.path === state.browser.selectedPath ? "is-selected" : ""}" type="button" data-image="${escapeHtml(image.path)}">
-          ${escapeHtml(image.name)}
+        (file) => `
+        <button class="browser-item ${file.path === state.browser.selectedPath ? "is-selected" : ""}" type="button" data-file="${escapeHtml(file.path)}">
+          ${escapeHtml(file.name)}
         </button>
       `,
       )
       .join("")
-    : `<div class="muted">No images match this filter.</div>`;
+    : `<div class="muted">No files match this filter.</div>`;
 
   elements.browserSelectCurrent.classList.toggle("hidden", !cfg.useCurrentFolder);
   elements.browserUseSelected.classList.toggle("hidden", cfg.useCurrentFolder);
@@ -483,15 +614,15 @@ function renderBrowserContents() {
     button.addEventListener("click", () => browse(button.dataset.folder));
   });
 
-  document.querySelectorAll("[data-image]").forEach((button) => {
+  document.querySelectorAll("[data-file]").forEach((button) => {
     button.addEventListener("click", () => {
-      state.browser.selectedPath = button.dataset.image;
+      state.browser.selectedPath = button.dataset.file;
       renderBrowserContents();
     });
 
     button.addEventListener("dblclick", () => {
-      if (state.browser.mode === "image") {
-        selectBrowserPath(button.dataset.image);
+      if (!cfg.useCurrentFolder) {
+        selectBrowserPath(button.dataset.file);
       }
     });
   });
@@ -530,33 +661,8 @@ function openBrowser(mode) {
 }
 
 function selectBrowserPath(path) {
-  if (state.browser.mode === "image") {
-    state.spc.file = null;
-    state.spc.imagePath = path;
-    elements.imageUpload.value = "";
-    resetPreview("Preview appears here.");
-  }
-
-  if (state.browser.mode === "output") {
-    state.spc.outputDir = path;
-  }
-
-  if (state.browser.mode === "batch-images") {
-    state.batch.imageDir = path;
-    updateBatchPathPills();
-    resetBatchPreview();
-    closeBrowser();
-    return;
-  }
-
-  if (state.browser.mode === "batch-output") {
-    state.batch.outputDir = path;
-    updateBatchPathPills();
-    closeBrowser();
-    return;
-  }
-
-  updatePathPills();
+  if (!state.browser.mode) return;
+  applySelectedPath(state.browser.mode, path);
   closeBrowser();
 }
 
@@ -626,14 +732,26 @@ elements.exportButton.addEventListener("click", () => {
   exportCurrent().catch((error) => showToast(error.message, true));
 });
 
-elements.browseImageButton.addEventListener("click", () => openBrowser("image"));
-elements.browseOutputButton.addEventListener("click", () => openBrowser("output"));
-elements.batchBrowseImagesButton.addEventListener("click", () => openBrowser("batch-images"));
-elements.batchBrowseOutputButton.addEventListener("click", () => openBrowser("batch-output"));
+elements.browseImageButton.addEventListener("click", () => {
+  requestPathSelection("image").catch((error) => showToast(error.message, true));
+});
+elements.browseOutputButton.addEventListener("click", () => {
+  requestPathSelection("output").catch((error) => showToast(error.message, true));
+});
+elements.batchBrowseImagesButton.addEventListener("click", () => {
+  requestPathSelection("batch-images").catch((error) => showToast(error.message, true));
+});
+elements.batchBrowseQuotesButton.addEventListener("click", () => {
+  requestPathSelection("batch-quotes").catch((error) => showToast(error.message, true));
+});
+elements.batchBrowseOutputButton.addEventListener("click", () => {
+  requestPathSelection("batch-output").catch((error) => showToast(error.message, true));
+});
 
 elements.batchQuotesUpload.addEventListener("change", (event) => {
   const [file] = event.target.files || [];
   state.batch.quotesFile = file || null;
+  state.batch.quotesPath = "";
   updateBatchPathPills();
   resetBatchPreview();
 });

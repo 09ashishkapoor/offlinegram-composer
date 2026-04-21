@@ -16,8 +16,10 @@ from PIL import Image
 
 
 SUPPORTED_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
+SUPPORTED_TEXT_SUFFIXES = {".txt", ".md"}
 FONT_SUFFIXES = {".ttf", ".otf", ".ttc"}
 DEFAULT_FONT_FILE = "BebasNeue-Regular.ttf"
+NATIVE_PICKER_MODES = {"image", "output", "batch-images", "batch-quotes", "batch-output"}
 
 BASE_DIR = Path(__file__).resolve().parent
 FONTS_DIR = BASE_DIR / "fonts"
@@ -190,6 +192,7 @@ def browse_directory(path: str | None) -> dict[str, Any]:
             "roots": list_windows_roots(),
             "folders": [],
             "images": [],
+            "text_files": [],
         }
 
     try:
@@ -210,6 +213,11 @@ def browse_directory(path: str | None) -> dict[str, Any]:
         for item in sorted(current.iterdir(), key=lambda child: child.name.lower())
         if item.is_file() and item.suffix.lower() in SUPPORTED_IMAGE_SUFFIXES
     ]
+    text_files = [
+        {"name": item.name, "path": str(item)}
+        for item in sorted(current.iterdir(), key=lambda child: child.name.lower())
+        if item.is_file() and item.suffix.lower() in SUPPORTED_TEXT_SUFFIXES
+    ]
     parent = None if current.parent == current else str(current.parent)
     return {
         "current": str(current),
@@ -217,7 +225,91 @@ def browse_directory(path: str | None) -> dict[str, Any]:
         "roots": list_windows_roots(),
         "folders": folders,
         "images": images,
+        "text_files": text_files,
     }
+
+
+def _resolve_initial_directory(initial_path: str | None) -> str | None:
+    if not initial_path:
+        return None
+
+    try:
+        candidate = Path(initial_path).expanduser().resolve(strict=False)
+    except (OSError, RuntimeError):
+        return None
+
+    if candidate.exists() and candidate.is_file():
+        candidate = candidate.parent
+
+    if candidate.exists() and candidate.is_dir():
+        return str(candidate)
+
+    parent = candidate.parent
+    if parent.exists() and parent.is_dir():
+        return str(parent)
+    return None
+
+
+def pick_native_path(mode: str, initial_path: str | None = None) -> str | None:
+    if os.name != "nt":
+        raise ProcessorError("Native path picker is available only on Windows.")
+
+    if mode not in NATIVE_PICKER_MODES:
+        raise ProcessorError(f"Unsupported picker mode '{mode}'.")
+
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except ImportError as exc:
+        raise ProcessorError("Native path picker is unavailable because tkinter is missing.") from exc
+
+    initial_dir = _resolve_initial_directory(initial_path)
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    root.update_idletasks()
+
+    try:
+        if mode == "image":
+            selected = filedialog.askopenfilename(
+                title="Choose Image",
+                initialdir=initial_dir,
+                filetypes=[
+                    ("Image files", "*.png *.jpg *.jpeg *.bmp *.tiff *.webp"),
+                    ("All files", "*.*"),
+                ],
+            )
+        elif mode == "batch-quotes":
+            selected = filedialog.askopenfilename(
+                title="Choose Batch Quote File",
+                initialdir=initial_dir,
+                filetypes=[
+                    ("Text files", "*.txt *.md"),
+                    ("All files", "*.*"),
+                ],
+            )
+        else:
+            titles = {
+                "output": "Choose Output Folder",
+                "batch-images": "Choose Batch Image Folder",
+                "batch-output": "Choose Batch Output Folder",
+            }
+            selected = filedialog.askdirectory(
+                title=titles.get(mode, "Choose Folder"),
+                initialdir=initial_dir,
+                mustexist=True,
+            )
+    finally:
+        root.destroy()
+
+    if not selected:
+        return None
+
+    try:
+        resolved = Path(selected).expanduser().resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise ProcessorError("Selected path is no longer available.") from exc
+    return str(resolved)
 
 
 def make_output_filename() -> str:

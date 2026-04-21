@@ -9,10 +9,13 @@ A locally-hosted web app for composing Instagram-style square posts. It runs a l
 ## Features
 
 - Drag-and-drop or browse to load any image
+- Native Windows file/folder picker for **Choose image**, **Choose quote file**, and **Choose output folder**
 - Enter overlay text in a single text area
 - One-click preset selection (defined in `presets.json`)
 - Live preview of the composited square canvas
 - Export as PNG to any local folder
+- Batch mode for pairing one image folder with a one-quote-per-line text file
+- Batch preview gallery for checking the first few image/quote pairings before export
 - Advanced zone/style controls hidden behind **Customize overlay** for power users
 - 100% offline — no cloud, no login, no telemetry
 
@@ -23,6 +26,12 @@ A locally-hosted web app for composing Instagram-style square posts. It runs a l
 ![Full interface — narrow](static/screenshots/ui-main.png)
 
 *Left: live preview canvas. Right: source, text, preset, and export controls.*
+
+### Batch mode
+
+![Batch mode](docs/screenshots/ui-batch.png)
+
+*Pick an image folder, upload or choose a quotes file, preview sample pairings, then export the whole batch with the active preset.*
 
 ## Quick start
 
@@ -44,6 +53,21 @@ Then open **http://127.0.0.1:8000** in your browser.
 3. Click a preset under **Choose a style**
 4. Click **Preview** to see the result
 5. Click **Export PNG** to save to your chosen output folder
+
+On Windows, the **Choose ...** buttons open native system dialogs. If native dialogs are unavailable in the current runtime, the app automatically falls back to the built-in browser picker.
+
+## Batch mode
+
+Use **Quotes to images** when you want to process a whole folder in one pass.
+
+1. Click **Choose image folder** and select the source folder
+2. Upload a plain text quotes file, or use **Choose quote file**
+3. Select the preset you want to apply to the whole batch
+4. Click **Choose output folder**
+5. Click **Preview batch** to render sample image/quote pairings
+6. Click **Export batch** to save all PNGs
+
+Batch mode expects one quote per non-empty line. The number of quotes must exactly match the number of source images, and the selected preset must contain exactly one usable custom text zone. If counts do not match, the batch operation stops before rendering.
 
 ## Customising presets
 
@@ -88,13 +112,9 @@ tests/            pytest test suite
 
 ## Roadmap
 
-### Batch mode — folder import & quote file
+### Multi-zone batch text files
 
-Point the app at a folder of images and a plain text file of quotes (one per line). The app processes every image in the folder, stamps each one with the next quote from the file using the active preset, and writes all exported PNGs to the same output folder in one operation. No manual clicking per image.
-
-### Batch mode — multi-zone text files
-
-Import a structured text file where each entry contains separate fields for multiple text zones on one image (e.g. a title line, a subtitle line, a caption). The app maps each field to its corresponding zone on the canvas, composites all images in the batch, and exports them together. Useful for recurring content formats where every post has the same layout but different copy in each zone.
+Import a structured text file where each entry contains separate fields for multiple text zones on one image (e.g. a title line, a subtitle line, a caption). The app would map each field to its corresponding zone on the canvas, composite all images in the batch, and export them together. Useful for recurring content formats where every post has the same layout but different copy in each zone.
 
 ---
 

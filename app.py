@@ -6,7 +6,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
@@ -27,7 +27,9 @@ from processor import (
     normalize_zones,
     parse_quote_lines,
     parse_text_entries,
+    pick_native_path,
     save_png,
+    NATIVE_PICKER_MODES,
 )
 
 
@@ -109,6 +111,29 @@ def _validate_output_dir(output_dir: str | None) -> str:
     return output_dir
 
 
+async def _read_text_content(text_file: UploadFile | None, text_path: str | None) -> str:
+    if text_file and text_file.filename:
+        raw = await text_file.read()
+    elif text_path:
+        try:
+            source = Path(text_path).expanduser().resolve(strict=True)
+        except (FileNotFoundError, OSError, RuntimeError) as exc:
+            raise HTTPException(status_code=400, detail="Selected text file was not found.") from exc
+        if not source.is_file():
+            raise HTTPException(status_code=400, detail="Selected text path is not a file.")
+        try:
+            raw = source.read_bytes()
+        except OSError as exc:
+            raise HTTPException(status_code=400, detail="Unable to read selected text file.") from exc
+    else:
+        raise HTTPException(status_code=400, detail="Upload a text file or choose one from disk.")
+
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Text file must be UTF-8 encoded.") from exc
+
+
 def _paired_batch_inputs(image_dir: str, text_content: str) -> tuple[list[Path], list[dict[str, str]]]:
     try:
         images = list_images(image_dir)
@@ -180,6 +205,23 @@ async def browse(path: str | None = None) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.post("/api/pick")
+async def pick_path(payload: dict[str, Any] | None = Body(default=None)) -> dict[str, Any]:
+    payload = payload or {}
+    mode = str(payload.get("mode") or "").strip()
+    if mode not in NATIVE_PICKER_MODES:
+        raise HTTPException(status_code=400, detail="Invalid picker mode.")
+
+    initial_path_raw = payload.get("initial_path")
+    initial_path = initial_path_raw.strip() if isinstance(initial_path_raw, str) else None
+    try:
+        selected_path = pick_native_path(mode=mode, initial_path=initial_path)
+    except ProcessorError as exc:
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
+
+    return {"path": selected_path, "cancelled": selected_path is None}
+
+
 @app.post("/api/preview")
 async def preview_single(
     image: UploadFile | None = File(default=None),
@@ -212,7 +254,8 @@ async def generate_single(
 
 @app.post("/api/batch/preview")
 async def preview_batch(
-    text_file: UploadFile = File(...),
+    text_file: UploadFile | None = File(default=None),
+    text_path: str | None = Form(default=None),
     image_dir: str = Form(default=""),
     zones_json: str | None = Form(default=None),
     sample_count: int = Form(default=3),
@@ -220,7 +263,7 @@ async def preview_batch(
     if not image_dir:
         raise HTTPException(status_code=400, detail="Select an image folder for batch mode.")
     zones = _parse_zones_json(zones_json)
-    text_content = (await text_file.read()).decode("utf-8")
+    text_content = await _read_text_content(text_file, text_path)
     images, entries = _paired_batch_inputs(image_dir, text_content)
     previews: list[dict[str, str]] = []
     for image_path, entry in list(zip(images, entries))[: max(1, min(sample_count, 5))]:
@@ -238,7 +281,8 @@ async def preview_batch(
 
 @app.post("/api/batch/generate")
 async def generate_batch(
-    text_file: UploadFile = File(...),
+    text_file: UploadFile | None = File(default=None),
+    text_path: str | None = Form(default=None),
     image_dir: str = Form(default=""),
     zones_json: str | None = Form(default=None),
     output_dir: str = Form(default=""),
@@ -246,7 +290,7 @@ async def generate_batch(
     if not image_dir:
         raise HTTPException(status_code=400, detail="Select an image folder for batch mode.")
     zones = _parse_zones_json(zones_json)
-    text_content = (await text_file.read()).decode("utf-8")
+    text_content = await _read_text_content(text_file, text_path)
     images, entries = _paired_batch_inputs(image_dir, text_content)
     files: list[str] = []
     output_root = _validate_output_dir(output_dir)
@@ -258,7 +302,8 @@ async def generate_batch(
 
 @app.post("/api/batch/quotes/preview")
 async def preview_batch_quotes(
-    text_file: UploadFile = File(...),
+    text_file: UploadFile | None = File(default=None),
+    text_path: str | None = Form(default=None),
     image_dir: str = Form(default=""),
     preset_id: str = Form(default=""),
     sample_count: int = Form(default=3),
@@ -268,7 +313,7 @@ async def preview_batch_quotes(
     if not preset_id:
         raise HTTPException(status_code=400, detail="Choose a preset.")
 
-    text_content = (await text_file.read()).decode("utf-8")
+    text_content = await _read_text_content(text_file, text_path)
     images, quotes = _paired_quote_batch_inputs(image_dir, text_content)
     previews: list[dict[str, str]] = []
     for image_path, quote in list(zip(images, quotes))[: max(1, min(sample_count, 5))]:
@@ -289,7 +334,8 @@ async def preview_batch_quotes(
 
 @app.post("/api/batch/quotes/generate")
 async def generate_batch_quotes(
-    text_file: UploadFile = File(...),
+    text_file: UploadFile | None = File(default=None),
+    text_path: str | None = Form(default=None),
     image_dir: str = Form(default=""),
     preset_id: str = Form(default=""),
     output_dir: str = Form(default=""),
@@ -299,7 +345,7 @@ async def generate_batch_quotes(
     if not preset_id:
         raise HTTPException(status_code=400, detail="Choose a preset.")
 
-    text_content = (await text_file.read()).decode("utf-8")
+    text_content = await _read_text_content(text_file, text_path)
     images, quotes = _paired_quote_batch_inputs(image_dir, text_content)
     files: list[str] = []
     output_root = _validate_output_dir(output_dir)

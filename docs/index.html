@@ -213,7 +213,7 @@
         <div class="feature-card">
           <div class="icon">🖼️</div>
           <h3>Drop an image</h3>
-          <p>Drag-and-drop or browse to load any JPEG, PNG, WebP, or BMP.</p>
+          <p>Drag-and-drop or use the native Windows picker to load JPEG, PNG, WebP, or BMP files.</p>
         </div>
         <div class="feature-card">
           <div class="icon">✏️</div>
@@ -234,6 +234,11 @@
           <div class="icon">💾</div>
           <h3>Export PNG</h3>
           <p>Save to any local folder. No watermarks, no compression, no upload.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">🗂️</div>
+          <h3>Batch mode</h3>
+          <p>Pair one image folder with a one-quote-per-line text file and export the whole run in one pass.</p>
         </div>
         <div class="feature-card">
           <div class="icon">🔒</div>
@@ -267,10 +272,41 @@
         </div>
         <div class="step">
           <h3>Compose and export</h3>
-          <p>Drop an image, type your text, choose a preset, preview, and click Export PNG.</p>
+          <p>Drop an image, type your text, choose a preset, preview, and click Export PNG. On Windows, Choose buttons open native file/folder dialogs.</p>
         </div>
       </div>
+      <p style="color:var(--muted);margin-top:14px;">If native dialogs are unavailable in the current runtime, the app falls back to its built-in browser picker.</p>
     </section>
+
+    <!-- Batch mode -->
+    <section>
+      <h2>Batch mode</h2>
+      <p style="color:var(--muted);margin-bottom:20px;">Use <strong>Quotes to images</strong> when you want to process a whole folder with one preset and a plain text quote list.</p>
+      <div class="steps">
+        <div class="step">
+          <h3>Choose an image folder</h3>
+          <p>Select the source folder that contains the images you want to process in order.</p>
+        </div>
+        <div class="step">
+          <h3>Add a quotes file</h3>
+          <p>Upload or choose a plain text file with one quote per non-empty line.</p>
+        </div>
+        <div class="step">
+          <h3>Preview sample pairings</h3>
+          <p>Render the first few image and quote pairs before exporting the full batch.</p>
+        </div>
+        <div class="step">
+          <h3>Export the batch</h3>
+          <p>Choose an output folder and save every rendered PNG in one operation.</p>
+        </div>
+      </div>
+      <p style="color:var(--muted);margin-top:14px;">Batch mode requires the image count and quote count to match exactly, and the selected preset must expose exactly one usable custom text zone.</p>
+    </section>
+
+    <!-- Batch screenshot -->
+    <div class="screenshot-wrap">
+      <img src="screenshots/ui-batch.png" alt="OfflineGram Composer batch mode for quotes to images">
+    </div>
 
     <!-- Stack -->
     <section>
@@ -294,15 +330,8 @@
         <div class="roadmap-item">
           <span class="roadmap-badge">Planned</span>
           <div>
-            <h3>Batch mode — folder import &amp; quote file</h3>
-            <p>Point the app at a folder of images and a plain text file of quotes (one per line). Every image is stamped with the next quote and exported automatically — no manual clicking per image.</p>
-          </div>
-        </div>
-        <div class="roadmap-item">
-          <span class="roadmap-badge">Planned</span>
-          <div>
-            <h3>Batch mode — multi-zone structured text files</h3>
-            <p>Import a structured file where each entry maps to multiple text zones on one image (title, subtitle, caption…). The app composites and exports the entire batch in one pass.</p>
+            <h3>Multi-zone batch text files</h3>
+            <p>Import a structured file where each entry maps to multiple text zones on one image, such as a title, subtitle, and caption. The app would composite and export the entire batch in one pass.</p>
           </div>
         </div>
       </div>

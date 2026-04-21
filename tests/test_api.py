@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from app import app
+from processor import ProcessorError
 
 
 client = TestClient(app)
@@ -111,12 +112,80 @@ def test_browse_valid_path(tmp_path: Path):
     assert response.status_code == 200
     payload = response.json()
     assert "folders" in payload
+    assert "text_files" in payload
     assert payload["current"] == str(tmp_path.resolve())
 
 
 def test_browse_invalid_path():
     response = client.get("/api/browse", params={"path": "Z:\\this\\path\\should\\not\\exist"})
     assert response.status_code == 400
+
+
+def test_browse_lists_text_files(tmp_path: Path):
+    quote_file = tmp_path / "quotes.txt"
+    quote_file.write_text("Stay steady\n", encoding="utf-8")
+    markdown_file = tmp_path / "notes.md"
+    markdown_file.write_text("Line\n", encoding="utf-8")
+    create_image(tmp_path / "sample.png", (1, 2, 3, 255))
+
+    response = client.get("/api/browse", params={"path": str(tmp_path)})
+    assert response.status_code == 200
+    payload = response.json()
+    text_names = {item["name"] for item in payload["text_files"]}
+    assert "quotes.txt" in text_names
+    assert "notes.md" in text_names
+
+
+def test_pick_path_success(monkeypatch, tmp_path: Path):
+    selected = tmp_path / "chosen"
+    selected.mkdir()
+    captured: dict[str, str | None] = {}
+
+    def fake_picker(mode: str, initial_path: str | None = None) -> str:
+        captured["mode"] = mode
+        captured["initial_path"] = initial_path
+        return str(selected)
+
+    monkeypatch.setattr("app.pick_native_path", fake_picker)
+    response = client.post(
+        "/api/pick",
+        json={
+            "mode": "batch-output",
+            "initial_path": str(tmp_path),
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["cancelled"] is False
+    assert payload["path"] == str(selected.resolve())
+    assert captured["mode"] == "batch-output"
+    assert captured["initial_path"] == str(tmp_path)
+
+
+def test_pick_path_cancelled(monkeypatch):
+    monkeypatch.setattr("app.pick_native_path", lambda mode, initial_path=None: None)
+    response = client.post("/api/pick", json={"mode": "output"})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["cancelled"] is True
+    assert payload["path"] is None
+
+
+def test_pick_path_rejects_invalid_mode():
+    response = client.post("/api/pick", json={"mode": "not-a-real-mode"})
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid picker mode."
+
+
+def test_pick_path_unavailable_runtime(monkeypatch):
+    def raise_unavailable(mode: str, initial_path: str | None = None) -> str | None:
+        raise ProcessorError("Native path picker is available only on Windows.")
+
+    monkeypatch.setattr("app.pick_native_path", raise_unavailable)
+    response = client.post("/api/pick", json={"mode": "output"})
+    assert response.status_code == 501
+    assert response.json()["detail"] == "Native path picker is available only on Windows."
 
 
 def test_batch_preview_and_generate(tmp_path: Path):
@@ -181,6 +250,29 @@ def test_batch_quotes_preview_success(tmp_path: Path):
     payload = response.json()
     assert len(payload["previews"]) == 2
     assert [item["quote"] for item in payload["previews"]] == ["First quote", "Second quote"]
+
+
+def test_batch_quotes_preview_supports_text_path(tmp_path: Path):
+    image_dir = tmp_path / "images"
+    image_dir.mkdir()
+    create_image(image_dir / "001.png", (10, 10, 10, 255))
+    create_image(image_dir / "002.png", (30, 30, 30, 255))
+
+    text_file = tmp_path / "quotes.txt"
+    text_file.write_text("First quote\nSecond quote\n", encoding="utf-8")
+
+    response = client.post(
+        "/api/batch/quotes/preview",
+        data={
+            "text_path": str(text_file),
+            "image_dir": str(image_dir),
+            "preset_id": "preset_1",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["previews"]) == 2
 
 
 def test_batch_quotes_preview_count_mismatch(tmp_path: Path):
