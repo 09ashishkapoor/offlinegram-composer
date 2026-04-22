@@ -98,6 +98,7 @@
   --radius-lg: 18px;
   --radius-md: 12px;
   --shadow-lg: 0 14px 36px rgba(0, 0, 0, 0.28);
+  --ui-scale: 0.9;
 }
 
 * {
@@ -112,6 +113,23 @@ body {
   background:
     radial-gradient(circle at top left, rgba(57, 255, 20, 0.12), transparent 35%),
     linear-gradient(180deg, #0d0d0d 0%, #090909 100%);
+}
+
+@supports (zoom: 1) {
+  body {
+    zoom: var(--ui-scale);
+  }
+}
+
+@supports not (zoom: 1) {
+  body {
+    overflow-x: hidden;
+  }
+
+  .app-shell {
+    transform: scale(var(--ui-scale));
+    transform-origin: top center;
+  }
 }
 
 h1,
