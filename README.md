@@ -4,6 +4,8 @@
 
 **[Project site -> 09ashishkapoor.github.io/offlinegram-composer](https://09ashishkapoor.github.io/offlinegram-composer/)**
 
+**[Roadmap -> docs/ROADMAP.md](docs/ROADMAP.md)**
+
 OfflineGram Composer is a simple tool for turning local images and text into ready-to-export quote graphics and square posts. Choose an image, add your text, pick a style preset, preview the result, and export a PNG without relying on cloud tools, accounts, or online editors.
 
 ![OfflineGram Composer - wide layout](static/screenshots/ui-wide.png)
@@ -162,6 +164,8 @@ The former roadmap item for multi-zone batch text files is now implemented.
 Live at **https://09ashishkapoor.github.io/offlinegram-composer/**
 
 The source is in the `docs/` folder, served via GitHub Pages (Settings -> Pages -> branch `main`, folder `/docs`).
+
+The site homepage now includes a roadmap spotlight near the top, and the full roadmap lives at [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ---
 
