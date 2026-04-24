@@ -17,6 +17,9 @@ The next roadmap should focus on three things in order:
 
 ## Phase 1 — Stabilize the shipped core
 
+### Status
+**Completed**
+
 ### Goal
 Make the existing single-image and structured batch flows more reliable, easier to understand, and safer to extend.
 
@@ -124,4 +127,4 @@ Testing should grow with the product, not after it.
 
 If only one milestone is tackled next, it should be:
 
-**Phase 1: stabilize the existing compose + structured batch workflow, while adding missing test coverage around error handling and preset rendering.**
+**Phase 2: make presets and exports first-class by adding preset management, richer typography controls, and reusable export workflows.**

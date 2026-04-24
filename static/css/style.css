@@ -205,6 +205,30 @@ select {
   line-height: 1.55;
 }
 
+.field-helper {
+  margin: 0 0 10px;
+}
+
+.helper-banner {
+  margin-top: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.helper-banner.is-info {
+  border-color: var(--accent-border);
+  background: rgba(57, 255, 20, 0.08);
+  color: #d7f4ce;
+}
+
+.helper-banner.is-error {
+  border-color: rgba(214, 141, 141, 0.42);
+  background: rgba(120, 36, 36, 0.16);
+  color: #f3caca;
+}
+
 .topbar {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)),
@@ -282,8 +306,17 @@ select {
   display: grid;
   gap: 8px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
-    var(--bg-card);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
+  var(--bg-card);
+}
+
+.batch-guidance {
+  display: grid;
+  gap: 6px;
+}
+
+.batch-guidance .helper-text {
+  color: #9aa2af;
 }
 
 .batch-control-card,

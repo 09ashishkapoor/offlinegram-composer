@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import base64
 import ctypes
+import csv
 import os
 import re
 import string
+import json
+from collections.abc import Mapping
+from io import StringIO
+from io import BytesIO
 import time
 import uuid
 from pathlib import Path
@@ -16,7 +21,9 @@ from PIL import Image
 
 
 SUPPORTED_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
-SUPPORTED_TEXT_SUFFIXES = {".txt", ".md"}
+_BATCH_QUOTE_FILE_SUFFIXES = (".txt", ".md", ".csv", ".tsv")
+SUPPORTED_TEXT_SUFFIXES = set(_BATCH_QUOTE_FILE_SUFFIXES)
+_BATCH_QUOTE_FILE_PATTERNS = " ".join(f"*{ext}" for ext in _BATCH_QUOTE_FILE_SUFFIXES)
 FONT_SUFFIXES = {".ttf", ".otf", ".ttc"}
 DEFAULT_FONT_FILE = "BebasNeue-Regular.ttf"
 NATIVE_PICKER_MODES = {"image", "output", "batch-images", "batch-quotes", "batch-output"}
@@ -94,9 +101,139 @@ DEFAULT_ZONES: list[dict[str, Any]] = [
     },
 ]
 
+STRUCTURED_TEXT_FIELDS = ("number", "name", "title", "subtitle", "caption")
+DEFAULT_REQUIRED_STRUCTURED_FIELDS = ("number", "name", "caption")
+
 
 class ProcessorError(ValueError):
     pass
+
+
+ALLOWED_EXPORT_FORMATS = {"png", "jpg", "webp"}
+LOSSY_EXPORT_FORMATS = {"jpg", "webp"}
+_TEMPLATE_TOKEN_PATTERN = re.compile(r"{(\w+)}")
+
+
+def normalize_export_format(raw_format: str | None) -> str:
+    value = (raw_format or "png").strip().lower().lstrip(".")
+    if value == "jpeg":
+        value = "jpg"
+    if value not in ALLOWED_EXPORT_FORMATS:
+        raise ProcessorError("Unsupported export format. Supported formats are PNG, JPG, and WebP.")
+    return value
+
+
+def validate_export_quality(export_format: str, quality: int | None) -> int | None:
+    if export_format not in LOSSY_EXPORT_FORMATS:
+        return None
+
+    if quality is None:
+        return 90
+
+    if not isinstance(quality, int):
+        raise ProcessorError("Quality must be an integer between 1 and 100.")
+
+    if not (1 <= quality <= 100):
+        raise ProcessorError("Quality must be between 1 and 100.")
+    return quality
+
+
+def validate_filename_template(template: str | None) -> str:
+    raw = (template or "").strip()
+    if not raw:
+        return "export-{index}"
+
+    if raw.count("{") != raw.count("}"):
+        raise ProcessorError("Invalid filename template: mismatched template braces.")
+
+    matches = _TEMPLATE_TOKEN_PATTERN.findall(raw)
+    token_start = raw.find("{")
+    if token_start != -1:
+        allowed_tokens = {"index", "source", "source_name", "base_name", "name", "slug", "preset"}
+        for token in matches:
+            if token not in allowed_tokens:
+                raise ProcessorError(
+                    "Unsupported filename token. Allowed tokens are: {index}, {source}, {source_name}, {base_name}, {name}, {slug}, {preset}."
+                )
+        # If there is a brace, ensure every brace pair belongs to an allowed token.
+        # This also rejects things like `{foo` or `}` without `{` in the malformed case above.
+        sanitized = re.sub(_TEMPLATE_TOKEN_PATTERN, "", raw)
+        if "{" in sanitized or "}" in sanitized:
+            raise ProcessorError("Invalid filename template syntax.")
+
+    if not raw:
+        return "export-{index}"
+
+    return raw
+
+
+def _sanitize_token_value(value: Any) -> str:
+    text = str(value).strip()
+    if not text:
+        return "untitled"
+    text = text.replace("/", " ").replace("\\", " ")
+    text = re.sub(r'[:*?"<>|]+', " ", text)
+    text = re.sub(r"[\r\n\t]+", " ", text)
+    text = re.sub(r"\s+", " ", text).strip(" ._")
+    return text or "untitled"
+
+
+def _slugify(value: Any) -> str:
+    text = _sanitize_token_value(value).lower()
+    text = re.sub(r"[^a-z0-9]+", "-", text)
+    text = re.sub(r"-+", "-", text).strip("-")
+    return text or "untitled"
+
+
+def _resolve_filename_tokens(values: Mapping[str, Any]) -> dict[str, str]:
+    source_seed = values.get("source_name") or values.get("base_name") or values.get("source") or "image"
+    source_stem = Path(str(source_seed)).stem or "image"
+    source_value = _sanitize_token_value(source_stem)
+    name_value = _sanitize_token_value(values.get("name", ""))
+    index_value = str(values.get("index", "1")).strip() or "1"
+    preset_value = _sanitize_token_value(values.get("preset", ""))
+
+    return {
+        "source": source_value,
+        "source_name": source_value,
+        "base_name": source_value,
+        "name": name_value,
+        "slug": _slugify(name_value),
+        "preset": preset_value,
+        "index": index_value,
+    }
+
+
+def resolve_output_filename(template: str, values: Mapping[str, Any]) -> str:
+    resolved_tokens = _resolve_filename_tokens(values)
+
+    def replace(match: re.Match[str]) -> str:
+        token = match.group(1)
+        return resolved_tokens[token]
+
+    resolved = _TEMPLATE_TOKEN_PATTERN.sub(replace, template)
+    resolved = re.sub(r"[\\/]+", "-", resolved)
+    resolved = re.sub(r'[:*?"<>|]+', "-", resolved)
+    resolved = resolved.replace("..", "-")
+    resolved = re.sub(r"\s+", " ", resolved).strip(" .-")
+    return resolved or "export"
+
+
+def _ensure_path_unique(base_path: Path, candidate: str) -> Path:
+    candidate_path = base_path / candidate
+    stem = candidate_path.stem
+    suffix = candidate_path.suffix
+
+    if not candidate_path.exists():
+        return candidate_path
+
+    for index in range(2, 10000):
+        candidate_with_suffix = f"{stem}-{index}{suffix}"
+        path = base_path / candidate_with_suffix
+        if not path.exists():
+            return path
+
+    raise ProcessorError("Could not find a unique filename in the selected output directory.")
 
 
 def ensure_runtime_dirs() -> None:
@@ -185,6 +322,266 @@ def parse_structured_text_lines(text: str) -> list[dict[str, str]]:
     if not entries:
         raise ProcessorError("The text file does not contain any usable structured entries.")
     return entries
+
+
+def detect_structured_import_format(text: str, import_format: str | None = None) -> str:
+    """Return one of 'csv', 'tsv', or 'text'."""
+    requested = (import_format or "auto").strip().lower()
+    if requested == "auto":
+        requested = "auto"
+    if requested not in {"auto", "text", "csv", "tsv"}:
+        raise ProcessorError("import_format must be one of 'auto', 'text', 'csv', or 'tsv'.")
+
+    if requested == "text":
+        return "text"
+    if requested == "csv":
+        return "csv"
+    if requested == "tsv":
+        return "tsv"
+
+    sample_lines = [line for line in text.splitlines() if line.strip()]
+    if not sample_lines:
+        return "text"
+
+    sample = "\n".join(sample_lines[:10])
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=",\t")
+        if dialect.delimiter == "\t":
+            return "tsv"
+        if dialect.delimiter == ",":
+            return "csv"
+    except csv.Error:
+        pass
+
+    has_tab = "\t" in sample
+    has_comma = "," in sample
+    if has_tab and not has_comma:
+        return "tsv"
+    if has_comma and not has_tab:
+        return "csv"
+
+    first = sample_lines[0]
+    if "," in first and "\t" not in first:
+        return "csv"
+    if "\t" in first and "," not in first:
+        return "tsv"
+
+    return "text"
+
+
+def _normalize_column_name(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "", value.strip().lower())
+    return normalized
+
+
+def _default_field_aliases() -> dict[str, str]:
+    return {
+        "number": "number",
+        "num": "number",
+        "no": "number",
+        "#": "number",
+        "name": "name",
+        "deity": "name",
+        "text": "name",
+        "caption": "caption",
+        "subheading": "subtitle",
+        "subtitle": "subtitle",
+        "title": "title",
+    }
+
+
+def parse_field_mapping_json(mapping_json: str | None) -> dict[str, str]:
+    """Parse a user-provided field mapping.
+
+    Supports both of:
+    - {"number": "No", "name": "Name", "caption": "Caption"}
+    - {"No": "number", "Name": "name", "Caption": "caption"}
+    """
+    if not mapping_json:
+        return {}
+
+    try:
+        payload = json.loads(mapping_json)
+    except json.JSONDecodeError as exc:
+        raise ProcessorError("Invalid field mapping JSON.") from exc
+
+    if not isinstance(payload, dict):
+        raise ProcessorError("Field mapping JSON must be an object.")
+
+    if not payload:
+        return {}
+
+    fields_to_columns: dict[str, str] = {}
+    columns_to_fields: dict[str, str] = {}
+    ambiguous_pairs: list[tuple[str, str, str, str]] = []
+    map_field_to_column: bool | None = None
+
+    for raw_key, raw_value in payload.items():
+        if not isinstance(raw_key, str) or not isinstance(raw_value, str):
+            raise ProcessorError("Field mapping JSON must map string names to string names.")
+
+        key = raw_key.strip()
+        value = raw_value.strip()
+        if not key or not value:
+            raise ProcessorError("Field mapping JSON must be non-empty strings.")
+
+        normalized_key = _normalize_column_name(key)
+        normalized_value = _normalize_column_name(value)
+
+        key_is_field = normalized_key in STRUCTURED_TEXT_FIELDS
+        value_is_field = normalized_value in STRUCTURED_TEXT_FIELDS
+
+        if key_is_field and not value_is_field:
+            if map_field_to_column is False:
+                raise ProcessorError("Field mapping must consistently map either field->column or column->field.")
+            fields_to_columns[normalized_key] = value
+            map_field_to_column = True
+            continue
+
+        if value_is_field and not key_is_field:
+            if map_field_to_column is True:
+                raise ProcessorError("Field mapping must consistently map either field->column or column->field.")
+            columns_to_fields[key] = normalized_value
+            map_field_to_column = False
+            continue
+
+        if key_is_field and value_is_field:
+            ambiguous_pairs.append((key, value, normalized_key, normalized_value))
+            continue
+
+        raise ProcessorError(
+            "Field mapping must use structured fields ('number', 'name', 'title', 'subtitle', 'caption') "
+            "as keys or values."
+        )
+
+    if map_field_to_column is None and ambiguous_pairs:
+        map_field_to_column = True
+
+    if map_field_to_column is False:
+        for key, _value, _normalized_key, normalized_value in ambiguous_pairs:
+            columns_to_fields[key] = normalized_value
+
+    if map_field_to_column is True:
+        for _, value, normalized_key, _normalized_value in ambiguous_pairs:
+            fields_to_columns[normalized_key] = value
+
+    if fields_to_columns and columns_to_fields:
+        raise ProcessorError("Field mapping must consistently map either field->column or column->field.")
+
+    if columns_to_fields:
+        # Invert into field->column
+        return {field: column for column, field in columns_to_fields.items()}
+    return fields_to_columns
+
+
+def extract_delimited_headers(text: str, *, import_format: str) -> list[str]:
+    delimiter = "," if import_format == "csv" else "\t"
+    reader = csv.DictReader(StringIO(text), delimiter=delimiter)
+    return list(reader.fieldnames or [])
+
+
+def parse_structured_delimited_text_lines(
+    text: str,
+    *,
+    import_format: str,
+    field_mapping: dict[str, str] | None = None,
+    required_fields: tuple[str, ...] = DEFAULT_REQUIRED_STRUCTURED_FIELDS,
+) -> tuple[list[dict[str, str]], list[str]]:
+    required_fields = required_fields or DEFAULT_REQUIRED_STRUCTURED_FIELDS
+    delimiter = "," if import_format == "csv" else "\t"
+    reader = csv.DictReader(StringIO(text), delimiter=delimiter)
+
+    headers = reader.fieldnames or []
+    if not headers:
+        raise ProcessorError("The file does not contain a valid header row for csv/tsv import.")
+
+    header_index = {_normalize_column_name(header): header for header in headers}
+    resolved_mapping = dict(field_mapping or {})
+
+    aliases = _default_field_aliases()
+    entries: list[dict[str, str]] = []
+
+    for field in required_fields:
+        mapped = resolved_mapping.get(field)
+        if mapped:
+            normalized_mapped = _normalize_column_name(mapped)
+            if normalized_mapped not in header_index:
+                raise ProcessorError(f"Mapped column '{mapped}' for field '{field}' was not found in the file header.")
+        else:
+            # Best-effort auto-detect from header aliases/standard names.
+            normalized_target_field = _normalize_column_name(field)
+            alias_candidate: str | None = None
+            for normalized_header, original_header in header_index.items():
+                if normalized_header == normalized_target_field:
+                    alias_candidate = original_header
+                    break
+                if aliases.get(normalized_header) == field:
+                    alias_candidate = original_header
+                    break
+            if alias_candidate is None:
+                raise ProcessorError(
+                    f"Missing required structured field '{field}' in csv/tsv import. "
+                    f"Provide a field mapping for {', '.join(required_fields)}."
+                )
+            resolved_mapping[field] = alias_candidate
+
+    for raw_row in reader:
+        if raw_row is None:
+            continue
+
+        values: dict[str, str] = {}
+        for key, value in raw_row.items():
+            values[key or ""] = "" if value is None else str(value).strip()
+
+        if not any(values.values()):
+            continue
+
+        number = values.get(resolved_mapping.get("number", ""), "")
+        name = values.get(resolved_mapping.get("name", ""), "")
+        caption = values.get(resolved_mapping.get("caption", ""), "")
+        missing_required_values = [field for field in required_fields if not values.get(resolved_mapping.get(field, ""), "")]
+        if missing_required_values:
+            raise ProcessorError(
+                "Each csv/tsv row must provide "
+                + ", ".join(missing_required_values)
+                + " values."
+            )
+
+        title = values.get(resolved_mapping.get("title", ""), number)
+        subtitle = values.get(resolved_mapping.get("subtitle", ""), name)
+
+        entries.append(
+            {
+                "number": number,
+                "name": name,
+                "title": title,
+                "subtitle": subtitle,
+                "caption": caption,
+            }
+        )
+
+    if not entries:
+        raise ProcessorError("The file does not contain any usable structured entries.")
+
+    return entries, headers
+
+
+def suggest_structured_field_mapping(headers: list[str], required_fields: tuple[str, ...] = DEFAULT_REQUIRED_STRUCTURED_FIELDS) -> dict[str, str]:
+    aliases = _default_field_aliases()
+    header_lookup = {_normalize_column_name(header): header for header in headers}
+    mapping: dict[str, str] = {}
+    for field in required_fields:
+        normalized_field = _normalize_column_name(field)
+        if normalized_field in header_lookup:
+            mapping[field] = header_lookup[normalized_field]
+            continue
+
+        for normalized_header, original_header in header_lookup.items():
+            if aliases.get(normalized_header) == field:
+                mapping[field] = original_header
+                break
+
+    return mapping
 
 
 def list_font_choices(fonts_dir: Path = FONTS_DIR) -> list[dict[str, str]]:
@@ -326,7 +723,7 @@ def pick_native_path(mode: str, initial_path: str | None = None) -> str | None:
                 title="Choose Batch Quote File",
                 initialdir=initial_dir,
                 filetypes=[
-                    ("Text files", "*.txt *.md"),
+                    ("Text files", _BATCH_QUOTE_FILE_PATTERNS),
                     ("All files", "*.*"),
                 ],
             )
@@ -358,12 +755,107 @@ def make_output_filename() -> str:
     return f"{uuid.uuid4()}.png"
 
 
-def save_png(output_dir: str | Path, data: bytes) -> Path:
+def _decode_rendered_image(data: bytes) -> Image.Image:
+    image = Image.open(BytesIO(data))
+    return image
+
+
+def _prepare_image_for_format(image: Image.Image, output_format: str) -> Image.Image:
+    if output_format == "jpg":
+        if image.mode in {"RGBA", "LA"}:
+            rgb_canvas = Image.new("RGB", image.size, (255, 255, 255))
+            rgb_canvas.paste(image.convert("RGBA"), mask=image.convert("RGBA").split()[-1])
+            return rgb_canvas
+        return image.convert("RGB")
+
+    if image.mode != "RGBA":
+        return image.convert("RGBA")
+    return image
+
+
+def save_rendered_image(
+    output_dir: str | Path,
+    data: bytes,
+    *,
+    source: str | Path = "image",
+    output_format: str = "png",
+    quality: int | None = None,
+    filename_template: str | None = None,
+    filename_values: Mapping[str, Any] | None = None,
+) -> Path:
     target_dir = Path(output_dir).expanduser()
-    target_dir.mkdir(parents=True, exist_ok=True)
-    file_path = target_dir / make_output_filename()
-    file_path.write_bytes(data)
-    return file_path.resolve()
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ProcessorError("Unable to prepare the selected output folder.") from exc
+
+    template = validate_filename_template(filename_template)
+    source_stem = Path(str(source)).stem if source else "image"
+    resolved_values: dict[str, Any] = {
+        "index": "1",
+        "source": source_stem,
+        "source_name": source_stem,
+        "base_name": source_stem,
+        "name": "",
+        "preset": "",
+    }
+    if filename_values:
+        resolved_values.update(dict(filename_values))
+    resolved_filename = resolve_output_filename(template, resolved_values)
+
+    output_format = normalize_export_format(output_format)
+    output_quality = validate_export_quality(output_format, quality)
+
+    final_filename = _ensure_path_unique(target_dir, f"{resolved_filename}.{output_format if output_format != 'jpg' else 'jpg'}")
+
+    image = _decode_rendered_image(data)
+    prepared = _prepare_image_for_format(image, output_format)
+
+    with BytesIO() as output_buffer:
+        if output_format == "png":
+            prepared.save(output_buffer, format="PNG")
+        elif output_format == "jpg":
+            prepared.save(
+                output_buffer,
+                format="JPEG",
+                quality=output_quality or 90,
+                optimize=True,
+            )
+        elif output_format == "webp":
+            prepared.save(
+                output_buffer,
+                format="WEBP",
+                quality=output_quality or 80,
+                method=6,
+                lossless=False,
+            )
+        else:
+            raise ProcessorError("Unsupported export format.")
+
+        try:
+            final_filename.write_bytes(output_buffer.getvalue())
+        except OSError as exc:
+            raise ProcessorError("Unable to write the exported image to the selected output folder.") from exc
+
+    return final_filename.resolve()
+
+
+def save_png(
+    output_dir: str | Path,
+    data: bytes,
+    *,
+    source: str | Path = "image",
+    filename_template: str | None = None,
+    filename_values: Mapping[str, Any] | None = None,
+) -> Path:
+    return save_rendered_image(
+        output_dir,
+        data,
+        source=source,
+        output_format="png",
+        filename_template=filename_template,
+        filename_values=filename_values,
+    )
 
 
 def image_file_to_base64(data: bytes) -> str:

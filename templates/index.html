@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OfflineGram Composer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230e1218'/%3E%3Crect x='9' y='43' width='46' height='11' rx='4' fill='%23ff8d5c'/%3E%3Ctext x='32' y='31' text-anchor='middle' font-size='20' fill='white' font-family='Arial'%3EP%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/css/style.css?v=20260422a">
+  <link rel="stylesheet" href="/static/css/style.css?v=20260422c">
 </head>
 <body>
   <div class="app-shell">
@@ -48,7 +48,8 @@
 
         <section class="panel-card">
           <p class="eyebrow">Text</p>
-          <label for="spc-text" class="field-label">Overlay text</label>
+          <label for="spc-text" id="spc-text-label" class="field-label">Overlay text</label>
+          <p id="spc-text-helper" class="helper-text field-helper">This preset uses one custom text zone. Enter the exact quote or phrase you want on the image.</p>
           <textarea id="spc-text" rows="5" placeholder="Enter the exact text to place on the image"></textarea>
         </section>
 
@@ -59,13 +60,33 @@
               <h2>Choose a style</h2>
             </div>
           </div>
-          <p id="preset-helper-text" class="helper-text">Edit presets in presets.json (in this project root, next to app.py).</p>
+          <p id="preset-helper-text" class="helper-text">Presets are editable right here in-app.</p>
           <div id="preset-options" class="preset-grid"></div>
         </section>
 
         <section class="panel-card">
+          <p class="eyebrow">Preset editor</p>
+          <label class="field-label" for="spc-preset-label">Preset label</label>
+          <input id="spc-preset-label" type="text" value="" placeholder="Preset label">
+          <label class="field-label" for="spc-preset-description">Description</label>
+          <input id="spc-preset-description" type="text" value="" placeholder="Preset description">
+          <p id="preset-editor-message" class="helper-text">Create, duplicate, update metadata, save overlay edits, or delete a preset.</p>
+          <div class="button-row">
+            <button class="ghost-button" id="spc-preset-create" type="button">New preset</button>
+            <button class="ghost-button" id="spc-preset-duplicate" type="button">Duplicate current</button>
+          </div>
+          <div class="button-row">
+            <button class="ghost-button" id="spc-preset-save-metadata" type="button">Save metadata</button>
+            <button class="ghost-button" id="spc-preset-save-overlay" type="button">Save overlay</button>
+          </div>
+          <div class="button-row">
+            <button class="ghost-button" id="spc-preset-delete" type="button">Delete preset</button>
+          </div>
+        </section>
+
+        <section class="panel-card">
           <details id="advanced-toggle">
-            <summary>Customize overlay</summary>
+            <summary>Customize overlay (first text zone)</summary>
             <div id="advanced-controls" class="advanced-grid"></div>
           </details>
         </section>
@@ -76,6 +97,27 @@
             <button class="ghost-button" id="spc-browse-output" type="button">Choose output folder</button>
             <span class="path-pill" id="spc-output-path">No output folder selected</span>
           </div>
+          <label class="field-label" for="spc-export-format">Export format</label>
+          <select id="spc-export-format">
+            <option value="png">PNG</option>
+            <option value="jpg">JPG</option>
+            <option value="webp">WebP</option>
+          </select>
+
+          <div id="spc-export-quality-group" class="inline-row">
+            <label class="field-label" for="spc-export-quality">Quality (1-100)</label>
+            <input id="spc-export-quality" type="number" min="1" max="100" step="1" value="92">
+          </div>
+
+          <label class="field-label" for="spc-export-filename-template">Filename template</label>
+          <input
+            id="spc-export-filename-template"
+            type="text"
+            value="{index}_{preset}_{source_name}"
+            placeholder="{index}_{preset}_{source_name}"
+          >
+          <p class="helper-text">Deterministic naming supports <code>{index}</code>, <code>{preset}</code>, <code>{source_name}</code>, <code>{base_name}</code>, <code>{name}</code>, and <code>{slug}</code>.</p>
+
           <div class="button-row">
             <button class="primary-button" id="spc-preview" type="button">Preview</button>
             <button class="primary-button" id="spc-export" type="button">Export PNG</button>
@@ -88,8 +130,11 @@
       <div class="batch-layout">
         <section class="panel-card batch-header-card">
           <p class="eyebrow">Batch Mode</p>
-          <h2 id="batch-mode-title">Text file to images</h2>
-          <p class="helper-text">Use one quote per line for single-zone presets, or <code>1. Name: Caption</code> for number/name/caption presets.</p>
+          <h2 id="batch-mode-title">Preset-driven batch</h2>
+          <div id="batch-mode-guidance" class="batch-guidance">
+            <p class="mini-label">How this preset maps text</p>
+            <p id="batch-mode-guidance-text" class="helper-text">Choose a preset to see whether this batch uses one quote per image or structured number/name/caption entries.</p>
+          </div>
         </section>
 
         <section class="panel-card batch-control-card">
@@ -106,14 +151,22 @@
           <div class="batch-input-group">
             <p class="eyebrow">Text File</p>
             <label class="compact-drop" for="batch-quotes-upload">
-              <input id="batch-quotes-upload" type="file" accept=".txt,.md,text/plain">
+              <input id="batch-quotes-upload" type="file" accept=".txt,.md,.csv,.tsv,text/plain,text/csv,text/tab-separated-values">
               <span class="drop-title">Upload text file</span>
-              <span class="drop-hint">One quote per line, or <code>1. Name: Caption</code> per line.</span>
+              <span id="batch-text-drop-hint" class="drop-hint">Choose a preset to show the expected text file format. CSV/TSV with headers can also be used.</span>
             </label>
+
+            <div id="batch-structured-mapping" class="batch-input-group hidden" aria-live="polite">
+              <p class="eyebrow">Field mapping</p>
+              <p id="batch-mapping-hint" class="helper-text">Choose a structured CSV/TSV file and map its columns to structured fields.</p>
+              <div id="batch-field-mapping"></div>
+            </div>
             <div class="inline-row">
               <button class="ghost-button" id="batch-browse-quotes" type="button">Choose text file</button>
               <span class="path-pill" id="batch-quotes-file">No text file selected</span>
             </div>
+            <p id="batch-text-helper" class="helper-text">Choose a preset to show the expected text file format.</p>
+            <p id="batch-preflight-message" class="helper-text helper-banner hidden" aria-live="polite"></p>
           </div>
 
           <div class="batch-input-group">
@@ -125,6 +178,27 @@
               </div>
             </div>
           </div>
+
+          <label class="field-label" for="batch-export-format">Batch format</label>
+          <select id="batch-export-format">
+            <option value="png">PNG</option>
+            <option value="jpg">JPG</option>
+            <option value="webp">WebP</option>
+          </select>
+
+          <div id="batch-export-quality-group" class="inline-row">
+            <label class="field-label" for="batch-export-quality">Quality (1-100)</label>
+            <input id="batch-export-quality" type="number" min="1" max="100" step="1" value="92">
+          </div>
+
+          <label class="field-label" for="batch-export-filename-template">Filename template</label>
+          <input
+            id="batch-export-filename-template"
+            type="text"
+            value="{index}_{preset}_{source_name}"
+            placeholder="{index}_{preset}_{source_name}"
+          >
+          <p class="helper-text">Deterministic naming supports <code>{index}</code>, <code>{preset}</code>, <code>{source_name}</code>, <code>{base_name}</code>, <code>{name}</code>, and <code>{slug}</code>.</p>
 
           <div class="button-row batch-actions">
             <button class="primary-button" id="batch-preview" type="button">Preview batch</button>
@@ -198,7 +272,7 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="/static/js/app.js?v=20260420b" defer></script>
+    <script src="/static/js/app.js?v=20260422e" defer></script>
   </div>
 </body>
 </html>

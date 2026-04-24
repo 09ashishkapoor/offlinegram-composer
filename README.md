@@ -86,7 +86,28 @@ Use **Quotes to images** when you want to process a whole folder in one pass.
 
 The selected preset controls how batch text is parsed. The preset definitions live in the project root in `presets.json`, and those root preset configs are the source of truth for batch mode. Use or edit `presets.json` when you want to change layout, field mapping, or text-zone behavior.
 
-Batch mode supports two preset-driven text-file formats:
+### API routes: preset-aware vs legacy
+
+There are now two batch API flows:
+
+- **Preset-aware flow (recommended):**
+  - `POST /api/batch/quotes/preview`
+  - `POST /api/batch/quotes/generate`
+
+  These routes are tied to a chosen preset (`preset_id`) and support both
+  single-quote-per-line and structured modes (such as `1. Name: Caption`) based on
+  the selected preset's text zones.
+
+- **Legacy generic flow (legacy compatibility):**
+  - `POST /api/batch/preview`
+  - `POST /api/batch/generate`
+
+  These older routes still exist for custom zone definitions via `zones_json` and do
+  not use preset resolution.
+
+Use the preset-aware `/api/batch/quotes/*` endpoints for normal quote workflows.
+
+Preset-aware batch mode supports two preset-driven text-file formats:
 
 - **Single-zone presets** (`preset_1`, `preset_2`): one quote per non-empty line
 - **Structured presets** (`preset_3` or your own presets using `text_source` values like `number`, `name`, and `caption`): one entry per non-empty line in the form `1. Name: Caption`
@@ -132,6 +153,13 @@ Click **Customize overlay** in the control panel to expose per-zone settings wit
 
 ```powershell
 venv\Scripts\python -m pytest -v
+```
+
+Frontend smoke tests (Chromium + Playwright Python) need the browser binaries once:
+
+```powershell
+venv\Scripts\python -m playwright install chromium
+venv\Scripts\python -m pytest -v -m e2e --browser=chromium
 ```
 
 ## Project structure
